@@ -184,6 +184,8 @@ public final class NexusEngine: ActionHost {
         // FSEvents is recursive: drop paths already covered by a parent
         let unique = Array(Set(paths)).sorted()
         let roots = unique.filter { p in !unique.contains { $0 != p && Paths.isInside(p, $0) } }
+        let existing = roots.filter { FileManager.default.fileExists(atPath: $0) }
+        if Set(existing) == Set(watcher.paths) { return }   // nothing changed — keep the live stream
         watcher.start(paths: roots)
     }
 
@@ -656,7 +658,8 @@ public final class NexusEngine: ActionHost {
             if let i = out.firstIndex(where: { $0.folder == folder }) {
                 out[i].score = 1 - (1 - out[i].score) * (1 - s.score)   // agreeing signals reinforce
                 out[i].reason += " · " + s.reason
-            } else if let i = out.firstIndex(where: { Paths.isInside(folder, $0.folder) && folder != $0.folder }), s.score >= 0.5 {
+            } else if let i = out.firstIndex(where: { Paths.isInside(folder, $0.folder) && folder != $0.folder }), s.score >= 0.5,
+                      Self.nameOverlap(file: file, subfolder: folder, parent: out[i].folder) {
                 // Category says "School & Documents", learned structure says ".../Physics": prefer the more specific folder
                 let combined = 1 - (1 - out[i].score) * (1 - s.score)
                 out[i] = Suggestion(folder: folder, score: combined, reason: s.reason + " · " + out[i].reason)
@@ -665,6 +668,14 @@ public final class NexusEngine: ActionHost {
             }
         }
         return out.filter { $0.folder != file.folder }.sorted { $0.score > $1.score }
+    }
+
+    /// True when the extra path components below `parent` actually describe the file ("Physics" for a physics syllabus),
+    /// not merely share its file type ("AMG Wallpapers" for a screenshot).
+    static func nameOverlap(file: FileRecord, subfolder: String, parent: String) -> Bool {
+        let extra = subfolder.dropFirst(parent.count).split(separator: "/").flatMap { Classifier.tokens(String($0)) }
+        let fileTerms = Set(Classifier.tokens(file.name) + file.topics.flatMap { Classifier.tokens($0) } + file.entities.filter { $0.kind == .course }.flatMap { Classifier.tokens($0.value) })
+        return extra.contains { t in fileTerms.contains(t) || fileTerms.contains { $0.hasPrefix(t) || t.hasPrefix($0) } }
     }
 
     func suggestedTags(for file: FileRecord) -> [String] {

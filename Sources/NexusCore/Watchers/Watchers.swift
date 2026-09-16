@@ -25,7 +25,11 @@ public final class FileWatcher {
     public init() {}
     deinit { stop() }
 
+    private var lastEventId: FSEventStreamEventId = FSEventStreamEventId(kFSEventStreamEventIdSinceNow)
+
     public func start(paths: [String], latency: TimeInterval = 0.8) {
+        // Resume from where the previous stream stopped so a restart never drops events
+        if let s = stream { lastEventId = FSEventStreamGetLatestEventId(s) }
         stop()
         let existing = paths.filter { FileManager.default.fileExists(atPath: $0) }
         guard !existing.isEmpty else { return }
@@ -33,7 +37,7 @@ public final class FileWatcher {
         var ctx = FSEventStreamContext(version: 0, info: Unmanaged.passUnretained(self).toOpaque(), retain: nil, release: nil, copyDescription: nil)
         let flags = UInt32(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagUseCFTypes |
                            kFSEventStreamCreateFlagUseExtendedData | kFSEventStreamCreateFlagIgnoreSelf | kFSEventStreamCreateFlagWatchRoot)
-        let callback: FSEventStreamCallback = { _, info, count, eventPaths, eventFlags, _ in
+        let callback: FSEventStreamCallback = { _, info, count, eventPaths, eventFlags, eventIds in
             guard let info else { return }
             let watcher = Unmanaged<FileWatcher>.fromOpaque(info).takeUnretainedValue()
             let array = Unmanaged<CFArray>.fromOpaque(eventPaths).takeUnretainedValue() as NSArray
@@ -48,6 +52,7 @@ public final class FileWatcher {
                 } else {
                     path = array[i] as? String
                 }
+                if Int(eventFlags[i]) & kFSEventStreamEventFlagHistoryDone != 0 { continue }
                 guard let raw = path else { continue }
                 let p = Paths.canonical(raw)
                 let isDir = flags & kFSEventStreamEventFlagItemIsDir != 0
@@ -61,10 +66,11 @@ public final class FileWatcher {
                 else { continue }
                 changes.append(FileChange(path: p, kind: kind, isDirectory: isDir, inode: inode))
             }
+            if count > 0 { watcher.lastEventId = eventIds[count - 1] }
             if !changes.isEmpty { watcher.onChange?(changes) }
         }
         stream = FSEventStreamCreate(kCFAllocatorDefault, callback, &ctx, existing as CFArray,
-                                     FSEventStreamEventId(kFSEventStreamEventIdSinceNow), latency, FSEventStreamCreateFlags(flags))
+                                     lastEventId, latency, FSEventStreamCreateFlags(flags))
         guard let stream else { return }
         FSEventStreamSetDispatchQueue(stream, queue)
         FSEventStreamStart(stream)
