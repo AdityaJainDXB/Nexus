@@ -131,6 +131,10 @@ public final class NexusEngine: ActionHost {
             guard let self, self.settings.batteryAware else { return false }
             return self.monitor.snapshot.shouldThrottle
         }
+        queue.isUnderPressure = { [weak self] in
+            guard let self, self.settings.batteryAware else { return false }
+            return self.monitor.snapshot.underPressure
+        }
         queue.onActivityChange = { [weak self] _ in self?.refreshStatus() }
         queue.start()
 
@@ -150,7 +154,7 @@ public final class NexusEngine: ActionHost {
                     self.enqueueOnce(.classifyFolder, name: "Index \(Paths.abbreviate(root))", kind: .ai, priority: .low, spec: JobSpec(operation: .classifyFolder, path: root))
                 }
             }),
-            ("digest", 60, { [weak self] in self?.flushNotificationDigest() }),
+            ("digest", 60, { [weak self] in self?.flushNotificationDigest(); self?.markAlive() }),
             ("projectLinks", 600, { [weak self] in self?.flushProjectLinks() }),
         ]
         scheduler.start()
@@ -158,7 +162,33 @@ public final class NexusEngine: ActionHost {
         connectors.startPolling()
         rebuildProjectVectors()
         store.log(ActivityEvent(kind: .system, message: "Nexus started · watching \(watcher.paths.count) folders"))
+        catchUpWhileClosed()
     }
+
+    private func markAlive() { store.setKV("lastAlive", String(Date().timeIntervalSince1970)) }
+
+    /// Files that landed in watched folders while Nexus wasn't running (quit, crash, reboot) are processed on launch.
+    /// FSEvents history doesn't survive a relaunch reliably, so compare against the last time the engine was alive.
+    private func catchUpWhileClosed() {
+        let lastAlive = store.kv("lastAlive").flatMap(Double.init)
+        markAlive()
+        guard let lastAlive else { return }   // first launch: existing files are organized only when the user asks
+        let since = Date(timeIntervalSince1970: lastAlive - 120)
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2) { [weak self] in
+            guard let self else { return }
+            for folder in self.settings.watchedFoldersExpanded {
+                for path in self.listFiles(folder, recursive: false) where self.store.file(path: Paths.canonical(path)) == nil {
+                    let v = try? URL(fileURLWithPath: path).resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey, .addedToDirectoryDateKey])
+                    let changed = [v?.addedToDirectoryDate, v?.creationDate, v?.contentModificationDate].compactMap { $0 }.max() ?? .distantPast
+                    if changed > since { self.enqueueIngest(path, trigger: self.triggerFor(path)) }
+                }
+            }
+        }
+    }
+
+    /// Nothing is moved or deleted on the user's behalf until they've finished (or skipped) first-run setup.
+    /// Until then confident suggestions go to the Review Queue instead.
+    var setupComplete: Bool { settings.onboardingComplete }
 
     public func stop() {
         watcher.stop()
@@ -419,7 +449,7 @@ public final class NexusEngine: ActionHost {
         guard !paused else { return }
 
         // A new download whose exact content is already filed elsewhere is just clutter: move it to Trash (undoable)
-        if settings.autoRemoveDuplicates, isAutomationFolder(path), let hash = rec.contentHash, rec.size > 0,
+        if settings.autoRemoveDuplicates, setupComplete, isAutomationFolder(path), let hash = rec.contentHash, rec.size > 0,
            let original = store.files(withHash: hash).first(where: { $0.id != rec.id && !isAutomationFolder($0.path) && FileManager.default.fileExists(atPath: $0.path) }) {
             let batch = newID()
             let (_, out) = await executor.run(actions: [RuleAction(kind: .trash)], file: rec, batchId: batch, dryRun: settings.dryRun)
@@ -707,7 +737,7 @@ public final class NexusEngine: ActionHost {
             }
             return
         }
-        if best.score >= settings.autoThreshold {
+        if best.score >= settings.autoThreshold && setupComplete {
             var actions = [RuleAction(kind: .move, target: best.folder)]
             if !tags.isEmpty { actions.append(RuleAction(kind: .tag, tags: tags)) }
             let batch = newID()

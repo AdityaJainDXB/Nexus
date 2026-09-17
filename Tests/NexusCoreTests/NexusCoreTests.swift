@@ -206,6 +206,55 @@ final class ExecutorIntegrationTests: XCTestCase {
         XCTAssertEqual(store.file(id: rec.id)?.tags, [])
     }
 
+    /// On battery, background jobs still run (one at a time) instead of waiting for AC power.
+    func testBatteryRunsJobsSerially() async throws {
+        let store = try NexusStore(path: tmp.appendingPathComponent("q.sqlite").path)
+        let queue = TaskQueue(store: store)
+        let lock = NSLock(); var active = 0, peak = 0
+        queue.isThrottled = { true }
+        queue.runner = { _, _ in
+            lock.lock(); active += 1; peak = max(peak, active); lock.unlock()
+            try await Task.sleep(nanoseconds: 150_000_000)
+            lock.lock(); active -= 1; lock.unlock()
+            return "ok"
+        }
+        let jobs = (0..<3).map { i in queue.enqueue(Job(name: "index \(i)", kind: .ai, priority: .low, spec: JobSpec(operation: .scanInsights))) }
+        queue.start()
+        for _ in 0..<100 where !jobs.allSatisfy({ store.job(id: $0.id)?.status == .completed }) { try await Task.sleep(nanoseconds: 100_000_000) }
+        XCTAssertTrue(jobs.allSatisfy { store.job(id: $0.id)?.status == .completed })
+        XCTAssertEqual(peak, 1)
+    }
+
+    /// Before first-run setup is finished, confident suggestions wait in the Review Queue instead of moving files.
+    func testNoAutomaticMovesBeforeSetup() async throws {
+        let inbox = tmp.appendingPathComponent("Downloads")
+        let finance = tmp.appendingPathComponent("Library/Finance/Invoices")
+        try FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: finance, withIntermediateDirectories: true)
+        try "INVOICE #1 amount due $10 invoice".write(to: finance.appendingPathComponent("old.txt"), atomically: true, encoding: .utf8)
+        let dup = inbox.appendingPathComponent("old copy.txt")
+        try FileManager.default.copyItem(at: finance.appendingPathComponent("old.txt"), to: dup)
+
+        let store = try NexusStore(path: tmp.appendingPathComponent("gate.sqlite").path)
+        var settings = NexusSettings()
+        settings.watchedFolders = [inbox.path]
+        settings.libraryRoots = [tmp.appendingPathComponent("Library").path]
+        settings.llmProvider = .off
+        store.saveSettings(settings)
+        store.setKV("seeded", "1")
+        let engine = NexusEngine(store: store)
+        engine.index(finance.appendingPathComponent("old.txt").path)
+
+        await engine.ingest(dup.path, trigger: .fileAdded)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dup.path), "duplicate must not be removed before setup")
+
+        settings.onboardingComplete = true
+        engine.updateSettings(settings)
+        setenv("NEXUS_TRASH_DIR", tmp.appendingPathComponent("Trash").path, 1)
+        await engine.ingest(dup.path, trigger: .fileAdded)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dup.path), "duplicate is removed once setup is done")
+    }
+
     func testRunawayGuard() {
         let g = RunawayGuard(limitPerMinute: 3)
         XCTAssertTrue(g.allow()); XCTAssertTrue(g.allow()); XCTAssertTrue(g.allow())

@@ -27,8 +27,10 @@ public final class TaskQueue {
     let store: NexusStore
     public var runner: Runner?
     public var maxConcurrent = 2
-    /// When true (battery / thermal pressure) only high & focus priority jobs start.
+    /// On battery: background work continues, one job at a time.
     public var isThrottled: () -> Bool = { false }
+    /// Low Power Mode or thermal pressure: only high & focus priority jobs start until it clears.
+    public var isUnderPressure: () -> Bool = { false }
     public var isPaused: () -> Bool = { false }
     public var onActivityChange: ((Int) -> Void)?
 
@@ -93,12 +95,13 @@ public final class TaskQueue {
 
     private func pump() {
         guard runner != nil, !isPaused() else { return }
-        let slots = maxConcurrent - running.count
+        let limit = isThrottled() ? 1 : maxConcurrent
+        let slots = limit - running.count
         guard slots > 0 else { return }
-        let throttled = isThrottled()
+        let pressure = isUnderPressure()
         for var job in store.dueJobs(limit: slots + 10) where running[job.id] == nil {
-            if running.count >= maxConcurrent { break }
-            if throttled && job.priority < .high { continue }
+            if running.count >= limit { break }
+            if pressure && job.priority < .high { continue }
             job.status = .running
             job.startedAt = Date()
             job.attempts += 1

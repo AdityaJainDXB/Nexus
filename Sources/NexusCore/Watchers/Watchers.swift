@@ -128,7 +128,8 @@ public struct SystemSnapshot {
     public var thermalState: ProcessInfo.ThermalState
     public var mountedVolumes: [String]
 
-    public var shouldThrottle: Bool { !onACPower || lowPowerMode || thermalState == .serious || thermalState == .critical }
+    public var shouldThrottle: Bool { !onACPower || underPressure }
+    public var underPressure: Bool { lowPowerMode || thermalState == .serious || thermalState == .critical }
 }
 
 public final class SystemMonitor {

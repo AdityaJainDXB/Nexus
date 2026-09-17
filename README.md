@@ -141,6 +141,7 @@ Requirements: macOS 14+ with Xcode 16+ (Swift 6 toolchain), Apple Silicon.
 ./scripts/build-app.sh        # fetches llama.cpp + model, builds Nexus.app with widgets & CLI
 ./scripts/make-dmg.sh         # styled DMG in dist/
 ./scripts/check-all.sh        # unit tests, all builds (Mac + iOS), smoke tests, DMG checks
+./scripts/e2e.sh              # 30 end-to-end scenarios against the installed /Applications/Nexus.app (sandboxed home)
 open iOS/NexusRemote.xcodeproj
 ```
 
