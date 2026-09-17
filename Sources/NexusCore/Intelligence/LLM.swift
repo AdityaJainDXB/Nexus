@@ -218,10 +218,14 @@ public final class LocalModelServer {
         cleanupStale()
         let port = Self.freePort()
         let p = Process()
-        p.executableURL = runtime
         let threads = max(2, min(8, ProcessInfo.processInfo.activeProcessorCount - 2))
-        p.arguments = ["-m", model.path, "--host", "127.0.0.1", "--port", String(port), "-c", "8192", "-ngl", "99",
-                       "-t", String(threads), "--parallel", "1", "--no-webui", "--log-disable"]
+        let args = ["-m", model.path, "--host", "127.0.0.1", "--port", String(port), "-c", "8192", "-ngl", "99",
+                    "-t", String(threads), "--parallel", "1", "--no-webui", "--log-disable"]
+        // Watchdog wrapper: the model server exits as soon as Nexus does — even after a crash or force quit.
+        let quoted = ([runtime.path] + args).map { "'" + $0.replacingOccurrences(of: "'", with: "'\\''") + "'" }.joined(separator: " ")
+        let parent = ProcessInfo.processInfo.processIdentifier
+        p.executableURL = URL(fileURLWithPath: "/bin/sh")
+        p.arguments = ["-c", "\(quoted) & child=$!; trap 'kill $child 2>/dev/null' TERM INT EXIT; while kill -0 \(parent) 2>/dev/null && kill -0 $child 2>/dev/null; do sleep 2; done; kill $child 2>/dev/null; wait $child"]
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
         try p.run()

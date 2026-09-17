@@ -84,6 +84,11 @@ if cmd == "discover" {
     }
     exit(0)
 }
+if cmd == "remote-test" {
+    // Protocol self-test for Nexus Remote: pair with a code, then send encrypted requests (and a replay).
+    import_remote_test(args)
+    exit(0)
+}
 if cmd == "help" || cmd == "--help" || cmd == "-h" { print(usage); exit(0) }
 
 guard let config = APIServer.loadClientConfig() else {
@@ -231,4 +236,50 @@ case "resume": _ = request("POST", "/v1/resume"); print("Automations resumed")
 default:
     print(usage)
     exit(1)
+}
+
+import CryptoKit
+
+func import_remote_test(_ args: [String]) {
+    let host = args.first ?? "127.0.0.1"
+    let code = args.count > 1 ? args[1] : ""
+    let base = "http://\(host):\(RemoteCrypto.defaultPort)"
+    func http(_ method: String, _ path: String, _ body: Data? = nil, headers: [String: String] = [:]) -> (Int, Data) {
+        var req = URLRequest(url: URL(string: base + path)!); req.httpMethod = method; req.httpBody = body; req.timeoutInterval = 60
+        headers.forEach { req.setValue($1, forHTTPHeaderField: $0) }
+        let sem = DispatchSemaphore(value: 0); var out = (0, Data())
+        URLSession.shared.dataTask(with: req) { d, r, _ in out = ((r as? HTTPURLResponse)?.statusCode ?? 0, d ?? Data()); sem.signal() }.resume(); sem.wait()
+        return out
+    }
+    let (hc, hd) = http("GET", "/hello")
+    guard hc == 200, let hello = try? JSONSerialization.jsonObject(with: hd) as? [String: Any], let saltB64 = hello["salt"] as? String, let salt = Data(base64Encoded: saltB64) else { print("✗ hello failed \(hc)"); return }
+    print("✓ hello: \(hello["name"] ?? "") pairingOpen=\(hello["pairingOpen"] ?? false)")
+    // wrong code first
+    let wrong = RemoteCrypto.pairingKey(code: "000000" == code ? "111111" : "000000", salt: salt)
+    let (wc, _) = http("POST", "/pair", try! RemoteCrypto.seal(["deviceName": "Attacker"], key: wrong))
+    print(wc == 401 ? "✓ wrong code rejected (401)" : "✗ wrong code not rejected: \(wc)")
+    let pk = RemoteCrypto.pairingKey(code: code, salt: salt)
+    let (pc, pd) = http("POST", "/pair", try! RemoteCrypto.seal(["deviceName": "Test iPhone"], key: pk))
+    guard pc == 200, let paired = try? RemoteCrypto.open(pd, key: pk), let id = paired["deviceId"] as? String, let kb = paired["deviceKey"] as? String else { print("✗ pairing failed \(pc) \(String(data: pd, encoding: .utf8) ?? "")"); return }
+    print("✓ paired as \(id.prefix(8))… with \(paired["macName"] ?? "")")
+    let key = SymmetricKey(data: Data(base64Encoded: kb)!)
+    func call(_ method: String, _ path: String, _ body: [String: Any]? = nil, replay: Data? = nil) -> (Int, Any?, Data) {
+        var env: [String: Any] = ["method": method, "path": path, "ts": Date().timeIntervalSince1970, "nonce": UUID().uuidString]
+        if let body { env["body"] = body }
+        let sealed = replay ?? (try! RemoteCrypto.seal(env, key: key))
+        let (sc, sd) = http("POST", "/r", sealed, headers: ["X-Nexus-Device": id])
+        guard sc == 200, let msg = try? RemoteCrypto.open(sd, key: key) else { return (sc, nil, sealed) }
+        return (msg["status"] as? Int ?? 0, msg["body"], sealed)
+    }
+    let (s1, b1, sealed1) = call("GET", "/v1/status")
+    print(s1 == 200 ? "✓ encrypted status: \((b1 as? [String: Any])?["status"] ?? "?") files=\((b1 as? [String: Any])?["files"] ?? "?")" : "✗ status \(s1)")
+    let (s2, _, _) = call("GET", "/v1/status", replay: sealed1)
+    print(s2 == 401 ? "✓ replayed request rejected" : "✗ replay accepted (\(s2))")
+    let (s3, b3, _) = call("POST", "/v1/command", ["text": "brief me", "confirm": true])
+    print(s3 == 200 ? "✓ remote command: \(((b3 as? [String: Any])?["message"] as? String ?? "").prefix(90))" : "✗ command \(s3)")
+    let (s4, b4, _) = call("GET", "/v1/review")
+    print(s4 == 200 ? "✓ review list: \((b4 as? [Any])?.count ?? 0) items" : "✗ review \(s4)")
+    var tampered = Data(base64Encoded: sealed1)!; tampered[tampered.count - 1] ^= 0xFF
+    let (s5, _) = http("POST", "/r", tampered.base64EncodedData(), headers: ["X-Nexus-Device": id])
+    print(s5 != 200 ? "✓ tampered ciphertext rejected (\(s5))" : "✗ tampered accepted")
 }

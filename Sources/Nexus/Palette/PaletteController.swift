@@ -78,6 +78,7 @@ final class PaletteController: NSObject, NSWindowDelegate {
     let model = PaletteModel()
 
     var isVisible: Bool { panel?.isVisible == true }
+    var panelWindow: NSWindow? { panel }
 
     func registerHotkeys(palette: PaletteHotkey, voice: VoiceHotkey) {
         paletteHotKey = nil

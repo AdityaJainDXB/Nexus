@@ -1,98 +1,164 @@
-# Nexus — the agentic desktop brain for macOS
+<p align="center">
+  <img src="docs/images/banner.png" alt="Nexus — your Mac files itself" width="100%">
+</p>
 
-Nexus lives in your menu bar and on a desktop hotbar. It understands the *contents* of your files, files them where
-they belong, runs your automations in the background, answers questions from your documents, and responds to your
-voice. It does all of this on-device, and every change is reversible.
+<p align="center">
+  <a href="https://github.com/AdityaJainDXB/Nexus/releases/latest/download/Nexus-1.0.0.dmg"><img src="https://img.shields.io/badge/Download%20for%20Mac-.dmg-39E2FF?style=for-the-badge&logo=apple&logoColor=white" alt="Download for Mac"></a>
+  &nbsp;
+  <a href="https://github.com/AdityaJainDXB/Nexus/releases/latest"><img src="https://img.shields.io/badge/iPhone%20Remote-.ipa-8F7CFF?style=for-the-badge&logo=apple&logoColor=white" alt="iPhone companion"></a>
+</p>
 
-> Hold **⌥⇧Space** anywhere: "move this week's invoices from Downloads to Finance and tag them tax" → Nexus reads the plan back → say **"run it"**.
+<p align="center">
+  <img src="https://img.shields.io/badge/macOS-13%2B-0D1220?style=flat-square" alt="macOS 13+">
+  <img src="https://img.shields.io/badge/Apple%20Silicon-native-0D1220?style=flat-square" alt="Apple Silicon">
+  <img src="https://img.shields.io/badge/AI-100%25%20on--device-3DF5A0?style=flat-square" alt="On-device AI">
+  <img src="https://img.shields.io/badge/works-offline-3DF5A0?style=flat-square" alt="Offline">
+  <img src="https://img.shields.io/badge/license-MIT-0D1220?style=flat-square" alt="MIT">
+</p>
 
-## Build & run
+<p align="center"><b>Nexus is an always-on agent that lives in your menu bar. It reads what's <i>inside</i> your files, learns how <i>you</i> organize, files new downloads into your existing folders, cleans up clutter, runs your automations, and does all of it from a sentence — typed or spoken. Nothing leaves your Mac.</b></p>
 
-Requirements: macOS 13+ (Apple Silicon recommended), Xcode 16+ / Swift 6 toolchain.
+---
 
-```bash
-./scripts/build-app.sh
-```
+## Why Nexus
 
-```bash
-open dist/Nexus.app
-```
-
-- Onboarding asks for inbox folders (default `~/Downloads`, `~/Desktop`), library folders (`~/Documents`), access
-  permissions, autopilot thresholds and starter rules.
-- For **whole-Mac mode**, grant *Full Disk Access* in **System Access** (sidebar) → Open Settings…
-- Voice needs Microphone + Speech Recognition (prompted on first use).
-- The on-device LLM uses Apple Intelligence when available, otherwise a local Ollama server, otherwise heuristics.
-
-Development:
-
-```bash
-swift test
-```
-
-```bash
-swift build && .build/debug/Nexus
-```
-
-Set `NEXUS_HOME=/some/dir` to run with an isolated database, for example while testing.
-
-## What's inside
-
-| | |
+| Siri / Spotlight | **Nexus** |
 |---|---|
-| **Surfaces** | Menu bar extra · desktop hotbar (floating or desktop layer) · global command palette · main window (Today, Review Queue, Files, Projects, Rules, Tasks & Schedule, Insights, Activity, Connectors, System Access, Developer) · Settings |
-| **Voice** | Push-to-talk or tap, on-device recognition, live level orb, auto-send on pause, spoken previews with "run it / cancel", spoken results |
-| **File brain** | PDF/Office/code/image OCR/audio extraction · doc type, topics, entities · FTS5 + sentence-embedding search · knowledge graph |
-| **Automation** | English → rules · visual flow builder · simulator & folder tests · conflict detection · 17 triggers, 17 condition fields, 31 actions |
-| **Autopilot** | Confidence gating (auto / review / ignore) that learns from approvals, edits and manual moves; habit → rule suggestions |
-| **Assistant** | Ask your files (RAG with citations) · "file this" / "summarize this" · brief me · meeting prep · focus mode |
-| **Engine** | Persistent priority task queue with retries · once/cron/conditional schedules · battery-aware |
-| **Safety** | Undo journal · Trash-only deletes · runaway guard · protected paths · dry run · sandboxed scripts/plugins · Keychain secrets |
-| **Extensibility** | Local REST API + `nexusctl` CLI · inbound webhooks · plugins · Calendar/Reminders, GitHub, Slack, Notion, Obsidian, Mail, Shortcuts |
+| Finds files by name | Understands content — invoices, lab reports, syllabi, KiCad boards, screenshots (OCR) |
+| Can't act on your files | Moves, renames, tags, dedupes, archives, syncs — with a preview and **one-click undo** |
+| Doesn't know your folders | Learns *your* structure (`School & Documents/Physics`, `CAD & Electronics`, iCloud) and files into it |
+| No automation | Rules in plain English: *“If a PDF in Downloads contains ‘MYP3’ → move to School, tag myp3”* |
+| Answers the web | Answers **your files**: *“When is the BrightSparks invoice due?”* → *“Nov 5, $84 [1]”* |
+| Needs the cloud | Bundled offline model (llama.cpp + Qwen 2.5), Vision OCR, on-device speech |
+
+## A look inside
+
+<p align="center">
+  <img src="docs/images/mac-01-today.png" alt="Today dashboard" width="100%">
+</p>
+
+<table>
+  <tr>
+    <td width="60%"><img src="docs/images/mac-11-palette-preview.png" alt="Command palette preview"></td>
+    <td width="40%"><img src="docs/images/mac-13-menu-bar.png" alt="Menu bar"></td>
+  </tr>
+  <tr>
+    <td><b>Command palette</b> — type or <i>say</i> what you want. Nexus shows exactly what will change before anything happens.</td>
+    <td><b>Menu bar</b> — status, review queue, insights and quick actions one click away.</td>
+  </tr>
+</table>
+
+<p align="center"><img src="docs/images/mac-02-review-queue.png" alt="Review queue" width="100%"></p>
+<p align="center"><sub><b>Review Queue</b> — medium-confidence suggestions routed to your real folders. Approve with ↩, reject with ⇧↩; every decision teaches autopilot.</sub></p>
+
+<p align="center"><img src="docs/images/mac-12-hotbar.png" alt="Desktop hotbar" width="70%"></p>
+<p align="center"><sub><b>Desktop hotbar</b> — a slim HUD with a live activity ticker, push-to-talk mic and quick actions.</sub></p>
+
+<table>
+  <tr>
+    <td><img src="docs/images/mac-05-rules.png" alt="Rules"></td>
+    <td><img src="docs/images/mac-07-insights.png" alt="Insights"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Rules in English + visual flow builder + simulator</sub></td>
+    <td align="center"><sub>Insights with one-click fixes</sub></td>
+  </tr>
+</table>
+
+## Features
+
+**🧠 Understands your files** — PDFs (incl. scanned, via OCR), Word/Pages, spreadsheets, slides, code, images, CAD/PCB files. Extracts document type, topics, people, dates, courses and amounts. Full-text + semantic search and a knowledge graph of related files.
+
+**📁 Files things where *you* would** — discovers your Documents, Desktop, organized Downloads subfolders, iCloud Drive and OneDrive, then routes new files into them. High confidence → done automatically. Medium → Review Queue. Low → left alone.
+
+**🎙 Voice-first** — hold **⌥⇧Space** anywhere, talk, release. Nexus reads risky plans back (*“Move 7 files… run it?”*) and speaks results. Recognition runs on-device.
+
+**⚡ Automations in plain English** — 17 triggers (new download, app opened, drive connected, disk low, schedules, GitHub/Mail/Notion events…), 31 actions, a visual node builder, a simulator and conflict detection.
+
+**🧹 Digital hygiene** — removes re-downloaded duplicates automatically, cleans duplicate sets and near-identical screenshots in one command, flags stale downloads and inactive projects.
+
+**💬 Ask your files** — *“What did my hydroponics lab conclude?”* answered from your documents with sources, fully offline.
+
+**🎯 Projects & Focus** — projects with deadlines and keywords; focus mode routes new files into the active project and holds non-urgent notifications. Meeting prep gathers related files before calendar events.
+
+**📱 iPhone remote** — pair your iPhone with a 6-digit code and command your Mac from anywhere on your network: speak commands, approve the review queue, apply fixes. End-to-end encrypted (ChaCha20-Poly1305), replay-protected.
+
+**🧩 Widgets** — status, insights and a one-tap “Talk to Nexus” widget for your desktop and Notification Center.
+
+**🛡 Built to be trusted** — every change is journaled and undoable, deletes go to the Trash, a runaway guard pauses automations if something goes wrong, system and `~/Library` locations are protected, scripts run sandboxed, secrets stay in the Keychain.
+
+## Install
+
+### Mac
+1. Download **[Nexus-1.0.0.dmg](https://github.com/AdityaJainDXB/Nexus/releases/latest/download/Nexus-1.0.0.dmg)** (≈1 GB — it includes the offline AI model).
+2. Open it and drag **Nexus** into **Applications**.
+3. First launch: Nexus is not yet notarized by Apple, so macOS will warn you.
+   Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to Nexus. You only do this once.
+4. Follow the short setup: confirm the folders Nexus found, grant access, pick starter automations.
+
+> Tip: for whole-Mac organizing, grant **Full Disk Access** from the **System Access** page inside Nexus.
+
+### iPhone (optional)
+The companion app isn't on the App Store yet. Download **`NexusRemote-1.0.0.ipa`** from the [latest release](https://github.com/AdityaJainDXB/Nexus/releases/latest) and install it with **[AltStore](https://altstore.io)** or **[Sideloadly](https://sideloadly.io)** using your Apple ID. Then on your Mac: **Nexus → Connectors → Allow iPhone control → Pair iPhone**, and enter the code on your phone. If macOS asks whether Nexus may accept incoming connections, click **Allow**.
 
 ## Keyboard & voice
 
 | Shortcut | Action |
 |---|---|
 | **⌥⇧Space** (hold / tap) | Talk to Nexus from any app |
-| **⇧⌘K** | Command palette from anywhere (⌘K inside Nexus) |
-| ⌘D (palette) · ⇧⌘D (app) | Dictate a command |
-| ↩ · ⌘↩ · ↑↓ · ⌘1–6 · ⌘Z · ⌘R · esc/⌘. | Palette: go · confirm · select · quick actions · undo · reveal · cancel |
-| ⌘1–⌘9 · ⌘N / ⇧⌘N / ⌥⌘N · ⇧⌘F | Sections · new rule/project/schedule · search files |
-| ⌥⌘Z · ⌥⌘O · ⌥⌘R · ⌥⌘P · ⌥⌘F | Undo automation · organize Downloads · scan insights · pause · focus |
-| ↑↓ ↩ ⇧↩ E Space | Review Queue: navigate, approve, reject, edit, open |
+| **⇧⌘K** | Command palette from anywhere |
+| ↩ · ⌘↩ · ↑↓ · ⌘1–6 · ⌘Z · ⌘R · esc | Palette: go · confirm · select · quick actions · undo · reveal · close |
+| ⌘1–9 · ⌘N · ⇧⌘N · ⇧⌘F | Sections · new rule · new project · search files |
+| ⌥⌘Z · ⌥⌘O · ⌥⌘P | Undo automation · organize Downloads · pause |
 | ⌘/ | Full cheat sheet |
 
-Standard macOS shortcuts (⌘Z text undo, ⌘, Settings, ⇧⌘P Page Setup, ⌘? Help) are not repurposed.
+## Things to try
 
-## CLI
+```text
+organize Downloads
+clean up duplicates
+find everything about hydroponics from this month
+move all invoices from Downloads to Finance and tag them tax
+When external drive 'Backup' is connected → sync Documents to /Volumes/Backup
+every Sunday at 9am generate weekly report
+focus on Science Fair for 90 minutes
+file this            (with files selected in Finder)
+brief me
+```
+
+## Privacy
+
+Everything — reading documents, OCR, embeddings, the language model, speech — runs on your Mac. Nexus only talks to the network for connectors you explicitly enable (GitHub, Slack, Notion, webhooks) and for the iPhone remote on your local network.
+
+## For developers
+
+<details>
+<summary>Build from source, architecture, tests</summary>
+
+Requirements: macOS 14+ with Xcode 16+ (Swift 6 toolchain), Apple Silicon.
 
 ```bash
-nexusctl status
-nexusctl run "find everything about hydroponics from this month"
-nexusctl run "organize Downloads" --yes
-nexusctl rule add "If a PDF in Downloads contains 'MYP3' → move to School, tag science"
-nexusctl compile "When external drive 'Backup' is connected → sync Projects and School folders"
-nexusctl simulate ~/Downloads/report.pdf
-nexusctl event custom.deploy '{"title":"v1.2"}'
+./scripts/build-app.sh        # fetches llama.cpp + model, builds Nexus.app with widgets & CLI
+./scripts/make-dmg.sh         # styled DMG in dist/
+./scripts/check-all.sh        # unit tests, all builds (Mac + iOS), smoke tests, DMG checks
+open iOS/NexusRemote.xcodeproj
 ```
 
-## Documentation
-
-- [Architecture](docs/ARCHITECTURE.md): components and how they communicate
-- [Data model](docs/DATA_MODEL.md): entities, relationships, schema
-- [Natural language → rules](docs/NL_RULES.md): 15 real compiler outputs
-- [MVP scope](docs/MVP.md): v0.1 must-haves and later
-- [Code skeletons](docs/CODE_SKELETONS.md): watcher, rule engine, scheduler, palette handler
-- [UI wireframes](docs/UI_WIREFRAMES.md): every surface
-- [Features & USP](docs/FEATURES_AND_USP.md): where Nexus beats Siri, plus a roadmap
-
-## Layout
+- [Architecture](docs/ARCHITECTURE.md) · [Data model](docs/DATA_MODEL.md) · [Natural language → rules](docs/NL_RULES.md)
+- [UI wireframes](docs/UI_WIREFRAMES.md) · [Features & roadmap](docs/FEATURES_AND_USP.md) · [MVP scope](docs/MVP.md) · [Code tour](docs/CODE_SKELETONS.md)
+- Local REST API on `127.0.0.1:7788` and the `nexusctl` CLI (`Nexus.app/Contents/MacOS/nexusctl`).
 
 ```
-Sources/NexusCore/   agent core: Database, Models, Core, Intelligence, Watchers, Rules, Scheduling, Commands, Insights, Connectors, API, Engine
-Sources/Nexus/       SwiftUI app: NexusApp, Palette (palette, voice, hotbar), Support (state, design system, system access), Views
+Sources/NexusCore/   agent core — intelligence, rules, scheduler, insights, connectors, API, remote
+Sources/Nexus/       SwiftUI app — palette, voice, hotbar, views
+Widgets/             WidgetKit extension
+iOS/                 Nexus Remote (iPhone)
 Sources/nexusctl/    CLI
-Tests/NexusCoreTests compiler, cron, rule engine, parser, end-to-end ingest → rule → undo
-scripts/             build-app.sh (bundle + icon + ad-hoc sign), make-icon.swift
 ```
+</details>
+
+## Credits
+
+Built with SwiftUI, Vision, NaturalLanguage, Speech and WidgetKit. Offline AI by [llama.cpp](https://github.com/ggml-org/llama.cpp) (MIT) running [Qwen2.5-1.5B-Instruct](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF) (Apache 2.0).
+
+<p align="center"><sub>MIT License · Made for people whose Downloads folder is a crime scene.</sub></p>

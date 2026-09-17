@@ -150,6 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             if FileManager.default.fileExists(atPath: appex) { DispatchQueue.global(qos: .utility).async { Shell.run("/usr/bin/pluginkit", ["-a", appex]) } }
             if Bundle.main.bundlePath.hasSuffix(".app") { UNUserNotificationCenter.current().delegate = self }
             if !headless { NSApp.activate(ignoringOtherApps: true) }
+            ScreenshotMode.runIfRequested()
         }
     }
 

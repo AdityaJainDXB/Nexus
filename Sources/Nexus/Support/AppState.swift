@@ -59,6 +59,9 @@ final class AppState: ObservableObject {
 
     let engine: NexusEngine
     let api: APIServer
+    let remote: RemoteServer
+    @Published var remoteDevices: [RemoteServer.Device] = []
+    @Published var remoteRunning = false
 
     @Published var selection: SidebarItem? = .today
     @Published var status: EngineStatus = .idle
@@ -95,6 +98,8 @@ final class AppState: ObservableObject {
         }
         engine = NexusEngine(store: store)
         api = APIServer(engine: engine)
+        remote = RemoteServer(api: api, store: store)
+        api.remote = remote
         settings = engine.settings
     }
 
@@ -114,6 +119,9 @@ final class AppState: ObservableObject {
         engine.contextSelection = { ContextCapture.selection }
         engine.start()
         if settings.apiEnabled { api.start(port: settings.apiPort) }
+        remote.onChange = { Task { @MainActor in AppState.shared.remoteDevices = AppState.shared.remote.devices; AppState.shared.remoteRunning = AppState.shared.remote.isRunning } }
+        if settings.remoteEnabled { remote.start() }
+        remoteDevices = remote.devices
         requestNotificationPermission()
         reloadAll()
         showOnboarding = !settings.onboardingComplete
@@ -167,7 +175,12 @@ final class AppState: ObservableObject {
         if e.contains("schedules") { schedules = store.schedules() }
         if e.contains("events") { events = store.events(limit: 400); recentCommands = store.commandHistory() }
         if e.contains("files") { fileCount = store.fileCount() }
-        if e.contains("settings") { settings = engine.settings }
+        if e.contains("settings") {
+            settings = engine.settings
+            // Apply changes made outside the Settings UI (API, CLI, iPhone)
+            if settings.remoteEnabled != remote.isRunning { settings.remoteEnabled ? remote.start() : remote.stop() }
+            if settings.apiEnabled && api.port == 0 { api.start(port: settings.apiPort) }
+        }
         focus = engine.focus
         paused = engine.paused
         if engine.status != status { setStatus(engine.status) }
@@ -182,6 +195,7 @@ final class AppState: ObservableObject {
         engine.updateSettings(s)
         settings = s
         if apiChanged { s.apiEnabled ? api.start(port: s.apiPort) : api.stop() }
+        if s.remoteEnabled != remote.isRunning { s.remoteEnabled ? remote.start() : remote.stop(); remoteRunning = remote.isRunning }
         if hotkeyChanged { PaletteController.shared.registerHotkeys(palette: s.paletteHotkey, voice: s.voiceHotkey) }
         NSApp.setActivationPolicy(s.showDockIcon ? .regular : .accessory)
         HotbarController.shared.apply(s.hotbar)

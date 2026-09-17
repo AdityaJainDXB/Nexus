@@ -187,6 +187,7 @@ public struct NexusSettings: Codable, Equatable {
     public var appearance: AppearanceChoice = .dark
     public var hotbar: HotbarMode = .floating
     public var localModelPath = ""             // "" = first bundled / added GGUF
+    public var remoteEnabled = false           // Nexus Remote (iPhone) over the local network
 
     public init() {}
 
@@ -237,6 +238,7 @@ public struct NexusSettings: Codable, Equatable {
         appearance = v(.appearance, d.appearance)
         hotbar = v(.hotbar, d.hotbar)
         localModelPath = v(.localModelPath, d.localModelPath)
+        remoteEnabled = v(.remoteEnabled, d.remoteEnabled)
     }
 }
 

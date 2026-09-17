@@ -126,11 +126,11 @@ public final class InsightsEngine {
                          detail: "Approving a few teaches Nexus your preferences so more happens automatically.", severity: .suggestion, command: "open review queue"))
         }
 
-        // 8. Rule conflicts
-        let rules = store.rules()
-        for c in ruleEngine.analyzeConflicts(rules) {
-            emit(Insight(key: "conflict:\(c.id)", kind: .ruleConflict, title: c.kind == .redundant ? "Redundant rules" : c.kind == .shadowed ? "A rule can never run" : "Conflicting rules",
-                         detail: c.message, severity: .warning, command: "open rules"))
+        // 8. Rule conflicts (one card, not one per pair)
+        let conflicts = ruleEngine.analyzeConflicts(store.rules())
+        if !conflicts.isEmpty {
+            emit(Insight(key: "conflicts", kind: .ruleConflict, title: conflicts.count == 1 ? "Two rules conflict" : "\(conflicts.count) rule conflicts to resolve",
+                         detail: conflicts.prefix(4).map { "• \($0.message)" }.joined(separator: "\n"), severity: .warning, command: "open rules"))
         }
 
         // 9. Learned patterns from manual moves
@@ -138,7 +138,7 @@ public final class InsightsEngine {
 
         // Clear resolved insights of kinds this scan owns (keep user to-dos & project suggestions from ingest)
         let owned: Set<InsightKind> = [.staleDownloads, .duplicates, .similarScreenshots, .folderGrowth, .inactiveProject, .lowDisk, .largeFiles, .reviewBacklog, .ruleConflict]
-        for i in store.insights(includeDismissed: true) where owned.contains(i.kind) && !liveKeys.contains(i.key) {
+        for i in store.insights(includeDismissed: true) where (owned.contains(i.kind) || i.key.hasPrefix("conflict:")) && !liveKeys.contains(i.key) {
             store.removeInsight(key: i.key)
         }
     }

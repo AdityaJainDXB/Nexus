@@ -8,3 +8,5 @@ Vendor.off/
 *.xcworkspace/xcuserdata/
 DerivedData/
 .DS_Store
+.build/dmgvenv/
+iOS/build/

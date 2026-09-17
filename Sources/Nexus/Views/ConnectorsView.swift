@@ -15,6 +15,7 @@ struct ConnectorsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 PageHeader(title: "Connectors & Plugins", subtitle: "Opt-in integrations. Secrets are stored in your Keychain, never in the Nexus database.")
+                RemoteCard()
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 330), spacing: 14)], spacing: 14) {
                     ForEach(statuses) { s in connectorCard(s) }
                 }
@@ -234,4 +235,53 @@ struct DeveloperView: View {
             cliStatus = "Linked \(Paths.abbreviate(dest)). Make sure ~/.local/bin is on your PATH."
         } catch { cliStatus = error.localizedDescription }
     }
+}
+
+struct RemoteCard: View {
+    @EnvironmentObject var app: AppState
+    @State private var code: String?
+    var body: some View {
+        Card {
+            HStack(alignment: .top, spacing: 16) {
+                Image(systemName: "iphone.gen3.radiowaves.left.and.right").font(.system(size: 30)).foregroundStyle(Theme.gradient).frame(width: 40)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Nexus Remote for iPhone").font(.headline)
+                        Pill(text: app.settings.remoteEnabled ? (app.remoteRunning ? "On · port \(RemoteCrypto.defaultPort)" : "Starting…") : "Off", color: app.settings.remoteEnabled ? Theme.success : .secondary)
+                    }
+                    Text("Command your Mac from your phone: speak or type commands, approve the Review Queue, apply insight fixes, start focus. Local network only, paired devices only, end-to-end encrypted.")
+                        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        Toggle("Allow iPhone control", isOn: Binding(get: { app.settings.remoteEnabled }, set: { var s = app.settings; s.remoteEnabled = $0; app.saveSettings(s) })).toggleStyle(.switch)
+                        Spacer()
+                        Button { code = app.remote.beginPairing() } label: { Label("Pair iPhone", systemImage: "qrcode") }
+                            .buttonStyle(PrimaryButtonStyle()).disabled(!app.settings.remoteEnabled)
+                    }
+                    ForEach(app.remoteDevices) { d in
+                        HStack {
+                            Image(systemName: "iphone").foregroundStyle(Theme.accent)
+                            Text(d.name).font(.system(size: 12.5, weight: .medium))
+                            Text(d.lastSeen.map { "last seen \(relativeTime($0))" } ?? "").font(.caption).foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Revoke") { app.remote.revoke(d.id) }.buttonStyle(GhostButtonStyle())
+                        }
+                    }
+                }
+            }
+        }
+        .sheet(item: Binding(get: { code.map { PairCode(code: $0) } }, set: { code = $0?.code })) { c in
+            VStack(spacing: 18) {
+                Image(systemName: "iphone.gen3.radiowaves.left.and.right").font(.system(size: 40)).foregroundStyle(Theme.gradient)
+                Text("Pair your iPhone").font(.title2.weight(.bold))
+                Text("Open Nexus Remote on your iPhone, choose “\(app.remote.macName)”, and enter:").foregroundStyle(.secondary).multilineTextAlignment(.center)
+                Text(c.code.map { String($0) }.enumerated().map { $0.offset == 3 ? " \($0.element)" : String($0.element) }.joined())
+                    .font(.system(size: 52, weight: .semibold, design: .monospaced)).tracking(6).foregroundStyle(Theme.accent)
+                    .textSelection(.enabled).accessibilityLabel("Pairing code \(c.code.map { String($0) }.joined(separator: " "))")
+                Text("Code expires in 3 minutes · 5 attempts").font(.caption).foregroundStyle(.secondary)
+                Button("Done") { code = nil }.keyboardShortcut(.defaultAction)
+            }
+            .padding(32).frame(width: 420)
+        }
+    }
+    struct PairCode: Identifiable { let code: String; var id: String { code } }
 }

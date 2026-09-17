@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSBonjourServices</key>
+	<array><string>_nexusremote._tcp</string></array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Nexus Remote finds and talks to Nexus running on your Mac over your local network.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Speak commands to your Mac.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Your voice is turned into commands on this iPhone.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict><key>NSAllowsLocalNetworking</key><true/></dict>
+</dict>
+</plist>

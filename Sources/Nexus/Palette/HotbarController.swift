@@ -9,6 +9,7 @@ final class HotbarController: NSObject, NSWindowDelegate {
     static let shared = HotbarController()
     private var panel: NSPanel?
     private let positionKey = "NexusHotbarOrigin"
+    var panelWindow: NSWindow? { panel }
 
     func apply(_ mode: HotbarMode) {
         guard mode != .off else { panel?.orderOut(nil); return }

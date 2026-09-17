@@ -5,6 +5,7 @@ import Network
 /// Used by `nexusctl`, scripts, Shortcuts ("Get contents of URL") and inbound webhooks (POST /v1/events).
 public final class APIServer {
     let engine: NexusEngine
+    public weak var remote: RemoteServer?
     private var listener: NWListener?
     public private(set) var token: String = ""
     public private(set) var port: UInt16 = 0
@@ -84,6 +85,19 @@ public final class APIServer {
         guard r.headers["authorization"] == "Bearer \(token)" || r.query["token"] == token else {
             return send(c, 401, ["error": "missing or invalid token (see ~/Library/Application Support/Nexus/api.json)"])
         }
+        let (status, obj) = await route(r)
+        send(c, status, obj)
+    }
+
+    /// Entry point for already-authenticated requests (local token or paired, decrypted remote device).
+    public func route(method: String, target: String, body: Data) async -> (Int, Any) {
+        await route(HTTPRequest(method: method, target: target, body: body))
+    }
+
+    func route(_ r: HTTPRequest) async -> (Int, Any) {
+        var routed: (Int, Any) = (500, ["error": "no response"])
+        func send(_ c: Void?, _ status: Int, _ obj: Any) { routed = (status, obj) }
+        let c: Void? = nil
         let e = engine
         let parts = r.path.split(separator: "/").map(String.init)
         do {
@@ -108,19 +122,19 @@ public final class APIServer {
                 send(c, 200, e.store.rules().map(Self.ruleJSON))
             case ("POST", ["v1", "rules"]):
                 let result = await e.compileRule(r.json["text"] as? String ?? "")
-                guard var rule = result.rule else { return send(c, 400, ["error": "could not compile", "warnings": result.warnings]) }
-                if (r.json["dryRun"] as? Bool) == true { return send(c, 200, ["rule": Self.ruleJSON(rule), "explanation": result.explanation, "warnings": result.warnings]) }
+                guard var rule = result.rule else { send(c, 400, ["error": "could not compile", "warnings": result.warnings]); return routed }
+                if (r.json["dryRun"] as? Bool) == true { send(c, 200, ["rule": Self.ruleJSON(rule), "explanation": result.explanation, "warnings": result.warnings]); return routed }
                 rule.enabled = (r.json["enabled"] as? Bool) ?? true
                 e.store.saveRule(rule)
                 send(c, 201, ["rule": Self.ruleJSON(rule), "explanation": result.explanation, "warnings": result.warnings])
             case ("POST", let p) where p.count == 4 && p[1] == "rules" && p[3] == "run":
-                guard let rule = e.store.rule(id: p[2]) ?? e.store.rules().first(where: { $0.name.lowercased().contains(p[2].lowercased()) }) else { return send(c, 404, ["error": "rule not found"]) }
+                guard let rule = e.store.rule(id: p[2]) ?? e.store.rules().first(where: { $0.name.lowercased().contains(p[2].lowercased()) }) else { send(c, 404, ["error": "rule not found"]); return routed }
                 let job = e.queue.enqueue(Job(name: "Run rule: \(rule.name)", kind: .file, priority: .high, spec: JobSpec(operation: .runRule, ruleId: rule.id)))
                 send(c, 200, ["jobId": job.id])
             case ("DELETE", let p) where p.count == 3 && p[1] == "rules":
                 e.store.deleteRule(p[2]); send(c, 200, ["deleted": p[2]])
             case ("POST", ["v1", "simulate"]):
-                guard let path = (r.json["path"] as? String).map(Paths.expand), let report = e.simulate(path: path) else { return send(c, 400, ["error": "path not readable"]) }
+                guard let path = (r.json["path"] as? String).map(Paths.expand), let report = e.simulate(path: path) else { send(c, 400, ["error": "path not readable"]); return routed }
                 send(c, 200, ["file": path, "docType": report.file.docType ?? "", "topics": report.file.topics, "conflicts": report.conflicts,
                               "rules": report.evaluations.map { ["rule": $0.rule.name, "fired": $0.fired, "triggerMatched": $0.triggerMatched, "blockedByStop": $0.skippedByStop,
                                                                   "conditions": $0.conditionResults.map { ["condition": $0.condition.summary, "passed": $0.passed, "actual": $0.actual] },
@@ -131,7 +145,7 @@ public final class APIServer {
                      "created": ISO8601DateFormatter().string(from: j.createdAt), "result": j.resultSummary ?? "", "error": j.error ?? "", "log": Array(j.log.suffix(20))] as [String: Any]
                 })
             case ("POST", ["v1", "tasks"]):
-                guard let op = (r.json["operation"] as? String).flatMap(JobOperation.init(rawValue:)) else { return send(c, 400, ["error": "operation required", "valid": JobOperation.allCases.map(\.rawValue)]) }
+                guard let op = (r.json["operation"] as? String).flatMap(JobOperation.init(rawValue:)) else { send(c, 400, ["error": "operation required", "valid": JobOperation.allCases.map(\.rawValue)]); return routed }
                 let spec = JobSpec(operation: op, path: r.json["path"] as? String, command: r.json["command"] as? String, params: r.json["params"] as? [String: String] ?? [:])
                 let job = e.queue.enqueue(Job(name: r.json["name"] as? String ?? op.rawValue, kind: .system, priority: .high, spec: spec))
                 send(c, 201, ["jobId": job.id])
@@ -152,11 +166,16 @@ public final class APIServer {
                 })
             case ("GET", ["v1", "report"]):
                 send(c, 200, ["markdown": e.reports.markdown(type: r.query["type"] ?? "weekly")])
+            case ("POST", ["v1", "remote", "pairing"]):
+                guard let remote, remote.isRunning else { send(c, 409, ["error": "Enable Nexus Remote first"]); return routed }
+                send(c, 200, ["code": remote.beginPairing(), "port": Int(remote.port), "name": remote.macName])
+            case ("GET", ["v1", "remote", "devices"]):
+                send(c, 200, (remote?.devices ?? []).map { ["id": $0.id, "name": $0.name] })
             case ("GET", ["v1", "review"]):
                 send(c, 200, e.store.reviewItems().map { ["id": $0.id, "path": $0.path, "destination": $0.suggestedDestination ?? "", "tags": $0.suggestedTags,
                                                           "confidence": $0.confidence, "reasons": $0.reasons, "alternatives": $0.alternatives] as [String: Any] })
             case ("POST", let p) where p.count == 4 && p[1] == "review" && (p[3] == "approve" || p[3] == "reject"):
-                guard let item = e.store.reviewItems().first(where: { $0.id == p[2] }) else { return send(c, 404, ["error": "review item not found"]) }
+                guard let item = e.store.reviewItems().first(where: { $0.id == p[2] }) else { send(c, 404, ["error": "review item not found"]); return routed }
                 if p[3] == "approve" {
                     await e.approve(item, destination: (r.json["destination"] as? String).map(Paths.expand), tags: r.json["tags"] as? [String])
                 } else { e.reject(item) }
@@ -174,7 +193,7 @@ public final class APIServer {
                 // Partial settings update (testing & automation): merge JSON keys into current settings
                 var current = (try? JSONSerialization.jsonObject(with: JSON.encoder.encode(e.settings))) as? [String: Any] ?? [:]
                 for (k, v) in r.json { current[k] = v }
-                guard let data = try? JSONSerialization.data(withJSONObject: current), let new = try? JSON.decoder.decode(NexusSettings.self, from: data) else { return send(c, 400, ["error": "invalid settings"]) }
+                guard let data = try? JSONSerialization.data(withJSONObject: current), let new = try? JSON.decoder.decode(NexusSettings.self, from: data) else { send(c, 400, ["error": "invalid settings"]); return routed }
                 e.updateSettings(new)
                 send(c, 200, ["ok": true])
             case ("POST", ["v1", "projects"]):
@@ -195,13 +214,14 @@ public final class APIServer {
                 e.bus.post(.connector(name: "api", payload: payload))
                 send(c, 200, ["accepted": payload["connectorEvent"] ?? name])
             case ("POST", ["v1", "ingest"]):
-                guard let path = (r.json["path"] as? String).map(Paths.expand) else { return send(c, 400, ["error": "path required"]) }
+                guard let path = (r.json["path"] as? String).map(Paths.expand) else { send(c, 400, ["error": "path required"]); return routed }
                 e.enqueueIngest(path, trigger: .manual)
                 send(c, 200, ["queued": path])
             default:
                 send(c, 404, ["error": "unknown endpoint \(r.method) \(r.path)"])
             }
         }
+        return routed
     }
 
     static func ruleJSON(_ r: Rule) -> [String: Any] {
@@ -211,6 +231,14 @@ public final class APIServer {
 }
 
 struct HTTPRequest {
+    init(method: String, target: String, body: Data) {
+        self.method = method
+        let comps = URLComponents(string: target)
+        path = comps?.path ?? target
+        query = Dictionary((comps?.queryItems ?? []).map { ($0.name, $0.value ?? "") }, uniquingKeysWith: { a, _ in a })
+        headers = [:]
+        self.body = body
+    }
     var method: String
     var path: String
     var query: [String: String]

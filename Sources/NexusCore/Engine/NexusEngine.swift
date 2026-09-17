@@ -143,6 +143,13 @@ public final class NexusEngine: ActionHost {
             ("ageSweep", 3600, { [weak self] in self?.sweepAgeRules() }),
             ("focus", 120, { [weak self] in self?.checkFocus() }),
             ("prune", 24 * 3600, { [weak self] in self?.store.pruneJobs() }),
+            // Keep library folders searchable (incremental: unchanged files are skipped)
+            ("libraryIndex", 24 * 3600, { [weak self] in
+                guard let self else { return }
+                for root in Set(self.settings.libraryRootsExpanded + self.settings.watchedFoldersExpanded) {
+                    self.enqueueOnce(.classifyFolder, name: "Index \(Paths.abbreviate(root))", kind: .ai, priority: .low, spec: JobSpec(operation: .classifyFolder, path: root))
+                }
+            }),
             ("digest", 60, { [weak self] in self?.flushNotificationDigest() }),
             ("projectLinks", 600, { [weak self] in self?.flushProjectLinks() }),
         ]
