@@ -10,3 +10,8 @@ DerivedData/
 .DS_Store
 .build/dmgvenv/
 iOS/build/
+windows/**/bin/
+windows/**/obj/
+windows/.build/
+windows/dist/
+windows/vendor/

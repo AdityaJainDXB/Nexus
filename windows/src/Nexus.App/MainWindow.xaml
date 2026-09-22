@@ -1,0 +1,89 @@
+<Window x:Class="Nexus.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Nexus" Width="1240" Height="800" MinWidth="980" MinHeight="620"
+        Background="{DynamicResource Bg}" WindowStartupLocation="CenterScreen"
+        Icon="pack://application:,,,/Assets/nexus.ico" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="236"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Sidebar -->
+        <Border Background="{DynamicResource BgElevated}" BorderBrush="{DynamicResource Line}" BorderThickness="0,0,1,0">
+            <DockPanel Margin="14,18,14,14">
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6,0,0,18">
+                    <Image Source="pack://application:,,,/Assets/logo.png" Width="30" Height="30"/>
+                    <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="Nexus" FontFamily="{StaticResource DisplayFont}" FontSize="17" FontWeight="SemiBold"/>
+                        <TextBlock Text="DESKTOP BRAIN // WIN" Style="{StaticResource Eyebrow}" FontSize="9.5"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <Button DockPanel.Dock="Top" Click="Ask_Click" HorizontalContentAlignment="Stretch" Margin="0,0,0,14" Padding="10,8" AutomationProperties.Name="Ask Nexus">
+                    <DockPanel Width="180">
+                        <TextBlock x:Name="AskHint" DockPanel.Dock="Right" Style="{StaticResource Mono}" Foreground="{DynamicResource TextFaint}" FontSize="10.5" VerticalAlignment="Center"/>
+                        <TextBlock Text="⌕  Ask Nexus…" Foreground="{DynamicResource TextMuted}"/>
+                    </DockPanel>
+                </Button>
+
+                <Border DockPanel.Dock="Bottom" Style="{StaticResource Card}" Padding="12,10" Margin="0,10,0,0">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="{DynamicResource Good}" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding StatusText}" Margin="8,0,0,0" FontWeight="SemiBold" FontSize="12.5"/>
+                        </StackPanel>
+                        <TextBlock Text="{Binding LlmName}" Style="{StaticResource Muted}" FontSize="11" Margin="16,3,0,0"/>
+                        <TextBlock Text="{Binding FocusText}" Foreground="{DynamicResource Violet}" FontSize="11" Margin="16,3,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="Nav">
+                        <TextBlock Text="WORKSPACE" Style="{StaticResource Section}" Margin="8,0,0,6"/>
+                        <RadioButton Style="{StaticResource NavItem}" Tag="today" Checked="Nav_Checked" GroupName="nav" IsChecked="True">
+                            <TextBlock Text="☀  Today" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavItem}" Tag="review" Checked="Nav_Checked" GroupName="nav">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Right" Style="{StaticResource Pill}" Margin="0" Visibility="{Binding ReviewCount, Converter={x:Static local:Converters.NonZero}}" xmlns:local="clr-namespace:Nexus.App">
+                                    <TextBlock Text="{Binding ReviewCount}" FontSize="11" Foreground="{DynamicResource Accent}" FontWeight="SemiBold"/>
+                                </Border>
+                                <TextBlock Text="⇲  Review Queue" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                            </DockPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavItem}" Tag="files" Checked="Nav_Checked" GroupName="nav"><TextBlock Text="🗎  Files" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/></RadioButton>
+                        <RadioButton Style="{StaticResource NavItem}" Tag="projects" Checked="Nav_Checked" GroupName="nav"><TextBlock Text="◫  Projects" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/></RadioButton>
+                        <TextBlock Text="AUTOMATION" Style="{StaticResource Section}" Margin="8,14,0,6"/>
+                        <RadioButton Style="{StaticResource NavItem}" Tag="rules" Checked="Nav_Checked" GroupName="nav"><TextBlock Text="⟿  Rules" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/></RadioButton>
+                        <RadioButton Style="{StaticResource NavItem}" Tag="tasks" Checked="Nav_Checked" GroupName="nav"><TextBlock Text="◷  Tasks &amp; Schedule" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/></RadioButton>
+                        <RadioButton Style="{StaticResource NavItem}" Tag="insights" Checked="Nav_Checked" GroupName="nav">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Right" Style="{StaticResource Pill}" Margin="0" Visibility="{Binding InsightCount, Converter={x:Static local:Converters.NonZero}}" xmlns:local="clr-namespace:Nexus.App">
+                                    <TextBlock Text="{Binding InsightCount}" FontSize="11" Foreground="{DynamicResource Accent}" FontWeight="SemiBold"/>
+                                </Border>
+                                <TextBlock Text="✦  Insights" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                            </DockPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavItem}" Tag="activity" Checked="Nav_Checked" GroupName="nav"><TextBlock Text="↺  Activity" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/></RadioButton>
+                        <TextBlock Text="SYSTEM" Style="{StaticResource Section}" Margin="8,14,0,6"/>
+                        <RadioButton Style="{StaticResource NavItem}" Tag="remote" Checked="Nav_Checked" GroupName="nav"><TextBlock Text="▯  iPhone Remote" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/></RadioButton>
+                        <RadioButton Style="{StaticResource NavItem}" Tag="settings" Checked="Nav_Checked" GroupName="nav"><TextBlock Text="⚙  Settings" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/></RadioButton>
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+
+        <!-- Content -->
+        <Grid Grid.Column="1">
+            <Canvas IsHitTestVisible="False" x:Name="Grid" Opacity="0.35"/>
+            <ContentControl x:Name="Page" Margin="34,26,34,20"/>
+            <Border x:Name="ToastBox" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,22" Style="{StaticResource Card}" Padding="16,10"
+                    Visibility="{Binding Toast, Converter={x:Static local:Converters.NotEmpty}}" xmlns:local="clr-namespace:Nexus.App" MaxWidth="720">
+                <Border.Effect><DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.35"/></Border.Effect>
+                <TextBlock Text="{Binding Toast}" TextWrapping="Wrap" TextTrimming="None"/>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

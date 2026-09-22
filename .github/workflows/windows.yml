@@ -1,0 +1,113 @@
+name: Windows
+
+on:
+  push:
+    branches: [main]
+    paths: ["windows/**", ".github/workflows/windows.yml"]
+  pull_request:
+    paths: ["windows/**"]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Attach the installer to the v1.0.0 release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-test-package:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache offline AI (llama.cpp + model)
+        uses: actions/cache@v4
+        with:
+          path: windows/vendor
+          key: vendor-b11007-qwen25-1.5b-q4km-v1
+
+      - name: Fetch offline AI
+        run: ./windows/scripts/fetch-vendor.ps1
+
+      - name: Unit tests
+        run: dotnet test windows/tests/Nexus.Core.Tests -c Release --logger "console;verbosity=normal"
+
+      - name: Install Inno Setup
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+
+      - name: Build app, CLI and installer
+        run: ./windows/scripts/build.ps1 -Version 1.0.0
+
+      - name: Install silently
+        run: |
+          $setup = Get-ChildItem windows/dist -Filter "Nexus-Setup-*.exe" | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/TASKS=", "/LOG=windows\dist\install.log" -Wait
+          if (-not (Test-Path "$env:ProgramFiles\Nexus\Nexus.exe")) { Get-Content windows\dist\install.log -Tail 40; throw "install failed" }
+          Get-ChildItem "$env:ProgramFiles\Nexus" | Select-Object Name, Length | Format-Table
+          reg query "HKLM\Software\Classes\nexus\shell\open\command"
+          netsh advfirewall firewall show rule name="Nexus Remote"
+
+      - name: End-to-end test (installed app, sandboxed)
+        run: python windows/scripts/e2e.py --exe "$env:ProgramFiles\Nexus\Nexus.exe" --nexusctl "$env:ProgramFiles\Nexus\nexusctl.exe"
+
+      - name: Offline AI on Windows
+        run: |
+          $out = & "$env:ProgramFiles\Nexus\nexusctl.exe" compile "If a PDF in Downloads contains 'invoice' → move to Finance/Invoices, tag invoice"
+          $out
+          if (-not ($out -match "Finance")) { throw "compile failed" }
+
+      - name: Screenshots
+        if: always()
+        run: |
+          $env:NEXUS_HOME = "$PWD\windows\.build\e2e\support"
+          $env:NEXUS_HOME_ROOT = "$PWD\windows\.build\e2e\home"
+          $env:NEXUS_SCREENSHOT_DIR = "$PWD\windows\dist\screenshots"
+          Start-Process "$env:ProgramFiles\Nexus\Nexus.exe" -Wait
+          Get-ChildItem windows\dist\screenshots
+
+      - name: Uninstall cleanly
+        run: |
+          Start-Process "$env:ProgramFiles\Nexus\unins000.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES" -Wait
+          Start-Sleep 3
+          if (Test-Path "$env:ProgramFiles\Nexus\Nexus.exe") { throw "uninstall left files" }
+
+      - name: Checksums
+        run: |
+          Get-ChildItem windows/dist -File -Include *.exe, *.zip -Recurse -Depth 0 | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_ -Algorithm SHA256).Hash.ToLower(), $_.Name } | Out-File windows/dist/SHA256SUMS-windows.txt -Encoding ascii
+          Get-Content windows/dist/SHA256SUMS-windows.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nexus-windows-screenshots
+          path: windows/dist/screenshots
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nexus-windows-installer
+          path: |
+            windows/dist/Nexus-Setup-*.exe
+            windows/dist/SHA256SUMS-windows.txt
+          compression-level: 0
+
+      - name: Attach to release v1.0.0
+        if: github.event_name == 'workflow_dispatch' && inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload v1.0.0 (Get-ChildItem windows/dist/Nexus-Setup-*.exe).FullName (Get-ChildItem windows/dist/Nexus-*-portable.zip).FullName windows/dist/SHA256SUMS-windows.txt --clobber --repo ${{ github.repository }}

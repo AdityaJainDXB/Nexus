@@ -1,0 +1,42 @@
+<UserControl x:Class="Nexus.App.FilesPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top">
+            <TextBlock Text="FILES // SEARCH BY WHAT'S INSIDE" Style="{StaticResource Eyebrow}"/>
+            <TextBlock Text="Files" Style="{StaticResource PageTitle}" Margin="0,4,0,14"/>
+            <TextBox x:Name="Query" KeyDown="Query_KeyDown" FontSize="15" AutomationProperties.Name="Search files"/>
+            <TextBlock x:Name="Hint" Style="{StaticResource Muted}" Margin="4,6,0,12" Text="Search names, contents, OCR text, people and dates — e.g. “invoices from last month”, “PDFs about hydroponics”, “kinematics”."/>
+        </StackPanel>
+        <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="340"/></Grid.ColumnDefinitions>
+            <ListBox x:Name="Results" Style="{StaticResource Rows}" SelectionChanged="Results_SelectionChanged" MouseDoubleClick="Results_DoubleClick">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel>
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding Folder}" Style="{StaticResource Muted}" FontSize="12"/>
+                            <TextBlock Text="{Binding Meta}" Foreground="{DynamicResource Accent}" FontSize="12" Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            <Border Grid.Column="1" Style="{StaticResource Card}" Margin="14,0,0,8" x:Name="Detail" Visibility="Collapsed">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock x:Name="DName" FontWeight="SemiBold" FontSize="15" TextWrapping="Wrap" TextTrimming="None"/>
+                        <TextBlock x:Name="DMeta" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,10" TextTrimming="None"/>
+                        <WrapPanel Margin="0,0,0,10">
+                            <Button Content="Open" Click="Open_Click" Margin="0,0,6,6"/>
+                            <Button Content="Show in Explorer" Click="Reveal_Click" Margin="0,0,6,6"/>
+                            <Button Content="Summarize" Click="Summarize_Click" Margin="0,0,6,6"/>
+                            <Button Content="File it" Click="FileIt_Click" Margin="0,0,6,6"/>
+                        </WrapPanel>
+                        <TextBlock Text="PREVIEW" Style="{StaticResource Section}" Margin="0,4,0,6"/>
+                        <TextBlock x:Name="DSnippet" TextWrapping="Wrap" TextTrimming="None" Style="{StaticResource Muted}"/>
+                        <TextBlock Text="RELATED" Style="{StaticResource Section}" Margin="0,14,0,6"/>
+                        <ItemsControl x:Name="Related"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+    </DockPanel>
+</UserControl>

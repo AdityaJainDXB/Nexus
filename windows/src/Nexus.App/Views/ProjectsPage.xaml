@@ -1,0 +1,36 @@
+<UserControl x:Class="Nexus.App.ProjectsPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top">
+            <TextBlock Text="PROJECTS // CONTEXT THAT FOLLOWS YOUR FILES" Style="{StaticResource Eyebrow}"/>
+            <TextBlock Text="Projects" Style="{StaticResource PageTitle}" Margin="0,4,0,14"/>
+            <Border Style="{StaticResource Card}" Padding="8" Background="{DynamicResource BgElevated}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Primary}" Content="Create" Click="Create_Click" Margin="8,0,0,0"/>
+                    <TextBox DockPanel.Dock="Right" x:Name="Keywords" Width="280" Margin="8,0,0,0" ToolTip="Keywords, comma separated"/>
+                    <TextBox x:Name="NameBox" ToolTip="Project name"/>
+                </DockPanel>
+            </Border>
+            <TextBlock Style="{StaticResource Muted}" Margin="4,6,0,12" Text="Name · keywords (comma separated). Files that mention them are linked automatically; focus mode routes new files into the project."/>
+        </StackPanel>
+        <ListBox Style="{StaticResource Rows}" ItemsSource="{Binding Projects}">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <Border Width="4" CornerRadius="2" Background="{Binding Color}" Margin="0,0,12,0"/>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14.5"/>
+                            <TextBlock Text="{Binding Stats}" Style="{StaticResource Muted}"/>
+                            <TextBlock Text="{Binding Keywords}" Foreground="{DynamicResource Violet}" FontSize="12"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button Content="Focus 2h" Click="Focus_Click" Tag="{Binding}" Margin="0,0,6,0"/>
+                            <Button Content="Summarize" Click="Summarize_Click" Tag="{Binding}" Margin="0,0,6,0"/>
+                            <Button Content="Archive" Style="{StaticResource Danger}" Click="Archive_Click" Tag="{Binding}"/>
+                        </StackPanel>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</UserControl>

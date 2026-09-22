@@ -1,0 +1,44 @@
+<UserControl x:Class="Nexus.App.RemotePage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel MaxWidth="820" HorizontalAlignment="Left">
+            <TextBlock Text="REMOTE // CONTROL THIS PC FROM YOUR IPHONE" Style="{StaticResource Eyebrow}"/>
+            <TextBlock Text="iPhone Remote" Style="{StaticResource PageTitle}" Margin="0,4,0,8"/>
+            <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" TextTrimming="None" Margin="0,0,0,16"
+                       Text="Nexus Remote for iPhone finds this PC on your Wi-Fi. Speak or type commands, approve the review queue and apply fixes from your phone. Everything is end-to-end encrypted (ChaCha20-Poly1305) and nothing leaves your network."/>
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <CheckBox x:Name="Enable" Style="{StaticResource Switch}" Content="Allow iPhone control" Checked="Enable_Changed" Unchecked="Enable_Changed"/>
+                    <TextBlock x:Name="State" Style="{StaticResource Muted}" Margin="0,6,0,0" TextWrapping="Wrap" TextTrimming="None"/>
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}" Margin="0,12,0,0" x:Name="PairBox">
+                <StackPanel>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Primary}" Content="Pair iPhone" Click="Pair_Click" VerticalAlignment="Center"/>
+                        <StackPanel>
+                            <TextBlock Text="Pair a new iPhone" FontWeight="SemiBold" FontSize="14.5"/>
+                            <TextBlock Style="{StaticResource Muted}" Text="Open Nexus Remote, choose this PC, then enter the code shown here."/>
+                        </StackPanel>
+                    </DockPanel>
+                    <TextBlock x:Name="Code" FontFamily="{StaticResource MonoFont}" FontSize="46" FontWeight="SemiBold" Foreground="{DynamicResource Accent}" HorizontalAlignment="Center" Margin="0,18,0,4" Visibility="Collapsed"/>
+                    <TextBlock x:Name="CodeHint" Style="{StaticResource Muted}" HorizontalAlignment="Center" Visibility="Collapsed" Text="Valid for 3 minutes · 5 attempts"/>
+                </StackPanel>
+            </Border>
+            <TextBlock Text="PAIRED DEVICES" Style="{StaticResource Section}"/>
+            <ItemsControl ItemsSource="{Binding Devices}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Card}" Padding="12,10" Margin="0,0,0,8">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="Revoke" Style="{StaticResource Danger}" Click="Revoke_Click" Tag="{Binding}"/>
+                                <StackPanel><TextBlock Text="{Binding Name}" FontWeight="SemiBold"/><TextBlock Text="{Binding Seen}" Style="{StaticResource Muted}"/></StackPanel>
+                            </DockPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" TextTrimming="None" Margin="2,10,0,0"
+                       Text="If Windows asks whether Nexus may communicate on private networks, choose Allow. The installer already adds a firewall rule for private networks only."/>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

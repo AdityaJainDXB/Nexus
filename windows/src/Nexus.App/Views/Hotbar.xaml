@@ -1,0 +1,19 @@
+<Window x:Class="Nexus.App.Hotbar"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Nexus Hotbar" Height="46" Width="560" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" Topmost="True" ShowInTaskbar="False" UseLayoutRounding="True">
+    <Border Background="{DynamicResource BgElevated}" BorderBrush="{DynamicResource LineStrong}" BorderThickness="1" CornerRadius="12" Margin="4" MouseLeftButtonDown="Drag">
+        <DockPanel Margin="10,0,6,0">
+            <Image DockPanel.Dock="Left" Source="pack://application:,,,/Assets/logo.png" Width="20" Height="20" Margin="0,0,8,0"/>
+            <Ellipse x:Name="Dot" DockPanel.Dock="Left" Width="7" Height="7" Fill="{DynamicResource Good}" Margin="0,0,8,0"/>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button x:Name="ReviewBtn" Style="{StaticResource Ghost}" Click="Review_Click" ToolTip="Review Queue" Foreground="{DynamicResource Warn}" FontSize="12"/>
+                <Button Style="{StaticResource Ghost}" Content="🎙" Click="Voice_Click" ToolTip="Talk to Nexus" AutomationProperties.Name="Talk to Nexus"/>
+                <Button Style="{StaticResource Ghost}" Content="⌕" FontSize="15" Click="Ask_Click" ToolTip="Ask Nexus" AutomationProperties.Name="Ask Nexus"/>
+                <Button x:Name="PauseBtn" Style="{StaticResource Ghost}" Content="⏸" Click="Pause_Click" ToolTip="Pause automations" AutomationProperties.Name="Pause automations"/>
+            </StackPanel>
+            <TextBlock x:Name="TickerText" Text="{Binding Ticker}" Style="{StaticResource Mono}" VerticalAlignment="Center" Foreground="{DynamicResource TextMuted}" FontSize="11.5"/>
+        </DockPanel>
+    </Border>
+</Window>
