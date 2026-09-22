@@ -69,6 +69,23 @@
   </tr>
 </table>
 
+## On Windows too
+
+<p align="center"><img src="docs/images/win-01-today.png" alt="Nexus for Windows — Today" width="100%"></p>
+
+<table>
+  <tr>
+    <td><img src="docs/images/win-02-review.png" alt="Windows Review Queue"></td>
+    <td><img src="docs/images/win-05-rules.png" alt="Windows Rules"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Review Queue — approving actually files it</sub></td>
+    <td align="center"><sub>Rules in plain English, with a dry-run simulator</sub></td>
+  </tr>
+</table>
+
+<sub>Nexus for Windows is a native WPF app on the same engine: system tray + desktop hotbar, <b>Ctrl+Alt+N</b> palette, <b>Ctrl+Alt+Space</b> offline voice, Windows OCR, Recycle Bin undo, OneDrive-aware folders — and the same iPhone app controls it. Screenshots are rendered by CI on a real Windows machine.</sub>
+
 ## Features
 
 **🧠 Understands your files** — PDFs (incl. scanned, via OCR), Word/Pages, spreadsheets, slides, code, images, CAD/PCB files. Extracts document type, topics, people, dates, courses and amounts. Full-text + semantic search and a knowledge graph of related files.

@@ -310,6 +310,16 @@ public class EngineTests : IDisposable
     }
 
     [Fact]
+    public void Plurals()
+    {
+        Assert.Equal("2 copies", Text.Plural(2, "copy"));
+        Assert.Equal("1 copy", Text.Plural(1, "copy"));
+        Assert.Equal("3 days", Text.Plural(3, "day"));
+        Assert.Equal("2 files", Text.Plural(2, "file"));
+        Assert.Equal("2 matches", Text.Plural(2, "match"));
+    }
+
+    [Fact]
     public void RunawayGuard()
     {
         var g = new RunawayGuard(3);

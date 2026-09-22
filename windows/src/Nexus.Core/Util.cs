@@ -267,7 +267,8 @@ public static class Text
         return future ? $"in {s}" : $"{s} ago";
     }
 
-    public static string Plural(int n, string word) => $"{n} {word}{(n == 1 ? "" : "s")}";
+    public static string Plural(int n, string word) =>
+        $"{n} {(n == 1 ? word : word.EndsWith('y') && word.Length > 1 && !"aeiou".Contains(word[^2]) ? word[..^1] + "ies" : word.EndsWith('s') || word.EndsWith("sh") || word.EndsWith("ch") || word.EndsWith('x') ? word + "es" : word + "s")}";
 
     public static string Collapse(this string s) => Regex.Replace(s, "\\s+", " ").Trim();
 

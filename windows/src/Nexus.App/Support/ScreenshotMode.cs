@@ -69,11 +69,13 @@ public static class ScreenshotMode
         w.UpdateLayout();
         var el = (FrameworkElement)w.Content;
         var dpi = VisualTreeHelper.GetDpi(w);
-        var width = (int)(el.ActualWidth * dpi.DpiScaleX); var height = (int)(el.ActualHeight * dpi.DpiScaleY);
+        // include the element's margin: RenderTargetBitmap draws it at its offset inside the window
+        var fullW = el.ActualWidth + el.Margin.Left + el.Margin.Right; var fullH = el.ActualHeight + el.Margin.Top + el.Margin.Bottom;
+        var width = (int)(fullW * dpi.DpiScaleX); var height = (int)(fullH * dpi.DpiScaleY);
         if (width == 0 || height == 0) return;
         var rtb = new RenderTargetBitmap(width, height, 96 * dpi.DpiScaleX, 96 * dpi.DpiScaleY, PixelFormats.Pbgra32);
         var bg = new DrawingVisual();
-        using (var dc = bg.RenderOpen()) dc.DrawRectangle((Brush)Application.Current.Resources["Bg"], null, new Rect(0, 0, el.ActualWidth, el.ActualHeight));
+        using (var dc = bg.RenderOpen()) if (w.AllowsTransparency == false) dc.DrawRectangle((Brush)Application.Current.Resources["Bg"], null, new Rect(0, 0, fullW, fullH));
         rtb.Render(bg);
         rtb.Render(el);
         var enc = new PngBitmapEncoder();
