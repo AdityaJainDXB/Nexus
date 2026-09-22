@@ -16,6 +16,10 @@ on:
 permissions:
   contents: write
 
+env:
+  PYTHONUTF8: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
 jobs:
   build-test-package:
     runs-on: windows-latest

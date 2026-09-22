@@ -6,6 +6,10 @@
 """
 import argparse, json, os, shlex, shutil, subprocess, sys, time, urllib.request, urllib.error, zlib
 
+for stream in (sys.stdout, sys.stderr):
+    try: stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception: pass
+
 ap = argparse.ArgumentParser()
 ap.add_argument("--exe"); ap.add_argument("--cmd"); ap.add_argument("--nexusctl")
 ap.add_argument("--root", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".build", "e2e sandbox"))
