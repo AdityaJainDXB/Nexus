@@ -29,6 +29,8 @@ public partial class App : Application
             try { File.AppendAllText(Path.Combine(Paths.AppSupport, "crash.log"), $"{DateTime.Now:o} {ex.Exception}\n"); } catch { }
             ex.Handled = true;
         };
+        AppDomain.CurrentDomain.UnhandledException += (_, ex) => { try { File.AppendAllText(Path.Combine(Paths.AppSupport, "crash.log"), $"{DateTime.Now:o} {ex.ExceptionObject}\n"); } catch { } };
+        TaskScheduler.UnobservedTaskException += (_, ex) => { try { File.AppendAllText(Path.Combine(Paths.AppSupport, "crash.log"), $"{DateTime.Now:o} task: {ex.Exception}\n"); } catch { } ex.SetObserved(); };
         Platform.Current = new WindowsPlatform();
         ThemeManager.Apply(new NexusStore().LoadSettings().Appearance);
         var state = AppState.Shared;
@@ -37,7 +39,7 @@ public partial class App : Application
 
         if (Environment.GetEnvironmentVariable("NEXUS_SCREENSHOT_DIR") is { Length: > 0 } shots)
         {
-            Dispatcher.BeginInvoke(async () => { await ScreenshotMode.Capture(shots); Shutdown(); }, DispatcherPriority.ApplicationIdle);
+            Dispatcher.BeginInvoke(async () => { await ScreenshotMode.Capture(shots); Shutdown(ScreenshotMode.Errors.Count == 0 ? 0 : 1); }, DispatcherPriority.ApplicationIdle);
             return;
         }
         if (Headless) return;

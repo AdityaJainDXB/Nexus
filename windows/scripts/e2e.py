@@ -8,7 +8,7 @@ import argparse, json, os, shlex, shutil, subprocess, sys, time, urllib.request,
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--exe"); ap.add_argument("--cmd"); ap.add_argument("--nexusctl")
-ap.add_argument("--root", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".build", "e2e"))
+ap.add_argument("--root", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".build", "e2e sandbox"))
 args = ap.parse_args()
 
 ROOT = os.path.abspath(args.root); H = os.path.join(ROOT, "home"); SUP = os.path.join(ROOT, "support"); TRASH = os.path.join(ROOT, "trash")
@@ -213,7 +213,15 @@ try:
     check(waitfor(lambda: exists("Documents", "School", "myp3-while-closed.pdf"), 40), "file added while closed is processed on relaunch")
 finally:
     kill()
-    time.sleep(3)
+    time.sleep(4)
+
+step("11 · Cleanup")
+if os.name == "nt":
+    procs = subprocess.run(["tasklist", "/FI", "IMAGENAME eq llama-server.exe"], capture_output=True, text=True).stdout
+    check("llama-server.exe" not in procs, "offline model server exits with Nexus (even after a hard kill)", procs)
+else:
+    procs = subprocess.run(["pgrep", "-fl", "llama-server"], capture_output=True, text=True).stdout
+    check(ROOT not in procs and "llama-server" not in procs, "offline model server exits with Nexus", procs)
 
 print(f"\n━━ E2E result: {PASS} passed, {FAIL} failed")
 if FAIL: print("Failed: " + ", ".join(FAILED)); sys.exit(1)

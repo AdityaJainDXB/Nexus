@@ -90,6 +90,15 @@ public class CompilerTests
     }
 
     [Fact]
+    public void AbsolutePathsWithSpaces()
+    {
+        var folder = Paths.IsWindows ? @"C:\Users\John Smith\Downloads" : "/Users/John Smith/Downloads";
+        var rule = compiler.Compile($"If a file in {folder} contains 'hypothesis' → move to School, tag science").Rule!;
+        Assert.Equal([Paths.Expand(folder)], rule.Trigger.Folders);
+        Assert.Contains(rule.Conditions.Conditions, c => c.Value == "hypothesis");
+    }
+
+    [Fact]
     public void ShippedExamplesCompile()
     {
         string[] examples =
@@ -176,7 +185,8 @@ public class ParserTests
 
 public class EngineTests : IDisposable
 {
-    readonly string tmp = Path.Combine(Path.GetTempPath(), "nexus-win-tests-" + Guid.NewGuid().ToString("N")[..8]);
+    // Not %TEMP%: on Windows that is inside AppData, which Nexus deliberately refuses to touch
+    readonly string tmp = Path.Combine(AppContext.BaseDirectory, "testdata-" + Guid.NewGuid().ToString("N")[..8]);
 
     public EngineTests()
     {
@@ -284,6 +294,19 @@ public class EngineTests : IDisposable
         for (var i = 0; i < 100 && !jobs.All(j => store.Job(j.Id)?.Status == JobStatus.completed); i++) await Task.Delay(100);
         Assert.All(jobs, j => Assert.Equal(JobStatus.completed, store.Job(j.Id)!.Status));
         Assert.Equal(1, peak);
+    }
+
+    [Fact]
+    public void RecycleBinRoundTrip()
+    {
+        if (!OperatingSystem.IsWindows()) return;   // real Recycle Bin only exists on Windows
+        var dir = Path.Combine(tmp, "bin test"); Directory.CreateDirectory(dir);
+        var f = Path.Combine(dir, $"recycle-me-{Guid.NewGuid():N}.txt");
+        File.WriteAllText(f, "bye");
+        RecycleBin.Send(f);
+        Assert.False(File.Exists(f));
+        Assert.True(RecycleBin.Restore(f));
+        Assert.Equal("bye", File.ReadAllText(f));
     }
 
     [Fact]

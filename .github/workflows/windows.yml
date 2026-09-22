@@ -71,14 +71,36 @@ jobs:
           $out
           if (-not ($out -match "Finance")) { throw "compile failed" }
 
-      - name: Screenshots
-        if: always()
+      - name: Render every window (XAML smoke test + screenshots)
         run: |
-          $env:NEXUS_HOME = "$PWD\windows\.build\e2e\support"
-          $env:NEXUS_HOME_ROOT = "$PWD\windows\.build\e2e\home"
+          $env:NEXUS_HOME = "$PWD\windows\.build\e2e sandbox\support"
+          $env:NEXUS_HOME_ROOT = "$PWD\windows\.build\e2e sandbox\home"
           $env:NEXUS_SCREENSHOT_DIR = "$PWD\windows\dist\screenshots"
-          Start-Process "$env:ProgramFiles\Nexus\Nexus.exe" -Wait
-          Get-ChildItem windows\dist\screenshots
+          $p = Start-Process "$env:ProgramFiles\Nexus\Nexus.exe" -Wait -PassThru
+          Get-ChildItem windows\dist\screenshots | Select-Object Name, Length | Format-Table
+          $errors = Get-Content windows\dist\screenshots\errors.txt -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0 -or $errors) { $errors; throw "a window failed to render (exit $($p.ExitCode))" }
+          if ((Get-ChildItem windows\dist\screenshots -Filter *.png).Count -lt 13) { throw "missing screenshots" }
+
+      - name: GUI launch, single instance and nexus:// links
+        run: |
+          $sandbox = "$PWD\windows\.build\gui sandbox"
+          New-Item -ItemType Directory -Force "$sandbox\home\Downloads", "$sandbox\home\Documents", "$sandbox\support" | Out-Null
+          $env:NEXUS_HOME = "$sandbox\support"; $env:NEXUS_HOME_ROOT = "$sandbox\home"
+          $main = Start-Process "$env:ProgramFiles\Nexus\Nexus.exe" -PassThru
+          Start-Sleep 20
+          if ($main.HasExited) { Get-Content "$sandbox\support\crash.log" -ErrorAction SilentlyContinue; throw "Nexus exited on launch ($($main.ExitCode))" }
+          $second = Start-Process "$env:ProgramFiles\Nexus\Nexus.exe" -ArgumentList "nexus://review" -PassThru
+          if (-not $second.WaitForExit(15000)) { throw "second instance did not hand off and exit" }
+          Start-Process "nexus://palette"; Start-Sleep 4
+          if ($main.HasExited) { throw "Nexus died after a nexus:// link" }
+          $api = Get-Content "$sandbox\support\api.json" | ConvertFrom-Json
+          $status = Invoke-RestMethod "$($api.url)/v1/status" -Headers @{ Authorization = "Bearer $($api.token)" }
+          "GUI instance: $($status.status) · $($status.llm) · $($status.files) files"
+          if (Test-Path "$sandbox\support\crash.log") { Get-Content "$sandbox\support\crash.log"; throw "crash.log written" }
+          Stop-Process -Id $main.Id -Force
+          Start-Sleep 3
+          if (Get-Process llama-server -ErrorAction SilentlyContinue) { throw "llama-server outlived Nexus" }
 
       - name: Uninstall cleanly
         run: |
@@ -95,7 +117,10 @@ jobs:
         if: always()
         with:
           name: nexus-windows-screenshots
-          path: windows/dist/screenshots
+          path: |
+            windows/dist/screenshots
+            windows/.build/e2e sandbox/app.log
+            windows/.build/**/crash.log
 
       - uses: actions/upload-artifact@v4
         with:

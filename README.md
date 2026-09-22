@@ -5,12 +5,16 @@
 <p align="center">
   <a href="https://github.com/AdityaJainDXB/Nexus/releases/latest/download/Nexus-1.0.0.dmg"><img src="https://img.shields.io/badge/Download%20for%20Mac-.dmg-39E2FF?style=for-the-badge&logo=apple&logoColor=white" alt="Download for Mac"></a>
   &nbsp;
+  <a href="https://github.com/AdityaJainDXB/Nexus/releases/latest/download/Nexus-Setup-1.0.0-x64.exe"><img src="https://img.shields.io/badge/Download%20for%20Windows-.exe-3DF5A0?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows"></a>
+  &nbsp;
   <a href="https://github.com/AdityaJainDXB/Nexus/releases/latest"><img src="https://img.shields.io/badge/iPhone%20Remote-.ipa-8F7CFF?style=for-the-badge&logo=apple&logoColor=white" alt="iPhone companion"></a>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/macOS-13%2B-0D1220?style=flat-square" alt="macOS 13+">
+  <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-0D1220?style=flat-square" alt="Windows 10 | 11">
   <img src="https://img.shields.io/badge/Apple%20Silicon-native-0D1220?style=flat-square" alt="Apple Silicon">
+  <a href="https://github.com/AdityaJainDXB/Nexus/actions/workflows/windows.yml"><img src="https://github.com/AdityaJainDXB/Nexus/actions/workflows/windows.yml/badge.svg" alt="Windows build"></a>
   <img src="https://img.shields.io/badge/AI-100%25%20on--device-3DF5A0?style=flat-square" alt="On-device AI">
   <img src="https://img.shields.io/badge/works-offline-3DF5A0?style=flat-square" alt="Offline">
   <img src="https://img.shields.io/badge/license-MIT-0D1220?style=flat-square" alt="MIT">
@@ -98,8 +102,16 @@
 
 > Tip: for whole-Mac organizing, grant **Full Disk Access** from the **System Access** page inside Nexus.
 
+### Windows 10 / 11
+1. Download **[Nexus-Setup-1.0.0-x64.exe](https://github.com/AdityaJainDXB/Nexus/releases/latest/download/Nexus-Setup-1.0.0-x64.exe)** (≈1 GB — includes the offline AI model).
+2. Run it. Windows SmartScreen may say *“Windows protected your PC”* because the installer isn't code-signed yet — click **More info → Run anyway**.
+3. Nexus opens its one-time setup, then lives in the **system tray** and the **hotbar** at the top of your screen.
+   Press **Ctrl+Alt+N** to ask Nexus, **Ctrl+Alt+Space** to talk to it.
+
+No admin rights? Choose *“Install for me only”* in the installer, or grab the portable `Nexus-1.0.0-win-x64-portable.zip` from the [release](https://github.com/AdityaJainDXB/Nexus/releases/latest).
+
 ### iPhone (optional)
-The companion app isn't on the App Store yet. Download **`NexusRemote-1.0.0.ipa`** from the [latest release](https://github.com/AdityaJainDXB/Nexus/releases/latest) and install it with **[AltStore](https://altstore.io)** or **[Sideloadly](https://sideloadly.io)** using your Apple ID. Then on your Mac: **Nexus → Connectors → Allow iPhone control → Pair iPhone**, and enter the code on your phone. If macOS asks whether Nexus may accept incoming connections, click **Allow**.
+The companion app isn't on the App Store yet. Download **`NexusRemote-1.0.0.ipa`** from the [latest release](https://github.com/AdityaJainDXB/Nexus/releases/latest) and install it with **[AltStore](https://altstore.io)** or **[Sideloadly](https://sideloadly.io)** using your Apple ID. Then on your Mac: **Nexus → Connectors → Allow iPhone control → Pair iPhone** (on Windows: **iPhone Remote → Allow iPhone control → Pair iPhone**), and enter the code on your phone. The same app controls a Mac or a PC. If macOS asks whether Nexus may accept incoming connections, click **Allow**.
 
 ## Keyboard & voice
 
@@ -143,6 +155,8 @@ Requirements: macOS 14+ with Xcode 16+ (Swift 6 toolchain), Apple Silicon.
 ./scripts/check-all.sh        # unit tests, all builds (Mac + iOS), smoke tests, DMG checks
 ./scripts/e2e.sh              # 30 end-to-end scenarios against the installed /Applications/Nexus.app (sandboxed home)
 open iOS/NexusRemote.xcodeproj
+# Windows (on Windows, PowerShell): windows\scripts\fetch-vendor.ps1; windows\scripts\build.ps1
+# Windows engine tests run anywhere: dotnet test windows/tests/Nexus.Core.Tests
 ```
 
 - [Architecture](docs/ARCHITECTURE.md) · [Data model](docs/DATA_MODEL.md) · [Natural language → rules](docs/NL_RULES.md)
@@ -155,6 +169,7 @@ Sources/Nexus/       SwiftUI app — palette, voice, hotbar, views
 Widgets/             WidgetKit extension
 iOS/                 Nexus Remote (iPhone)
 Sources/nexusctl/    CLI
+windows/             Nexus for Windows — Nexus.Core (.NET 10 engine), Nexus.App (WPF), nexusctl, installer, e2e
 ```
 </details>
 

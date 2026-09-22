@@ -250,6 +250,8 @@ public class NLRuleCompiler
         var trigger = new Trigger(kind);
         string[] folderPatterns =
         [
+            // absolute paths may contain spaces ("C:\Users\John Smith\Downloads") — read up to the next keyword
+            @"\b(?:in|from|into|inside|within|under)\s+((?:[A-Za-z]:[\\/]|/|~[\\/])[^,→⟦]*?)(?=\s+(?:contains|containing|with|named|called|that|which|is|are|gets|older|newer|larger|bigger|smaller|over|and|or|mentioning|about|tagged|lands|arrives|appears)\b|\s*,|\s*$)",
             @"(?:folder|location)\s+is\s+(⟦\d+⟧|~?[\w\-/\.]+(?:\s[A-Z][\w\-]*)*)",
             @"\b(?:in|from|into|on|inside|within|under)\s+(?:the\s+|my\s+)?(⟦\d+⟧|~[\w\-/\\\. ]+?|/[\w\-/\. ]+?|[A-Za-z]:[\\/][\w\-\\/\. ]+?|downloads|desktop|documents|pictures|videos|movies|music|screenshots|onedrive|icloud drive|[A-Z][\w\-]*(?:[/\\][\w\-]+)+)(?:\s+folder)?(?=\s|$|,)",
         ];
@@ -263,6 +265,8 @@ public class NLRuleCompiler
                 if (WellKnownFolders.ContainsKey(raw) || raw.Contains('/') || raw.Contains('\\') || raw.StartsWith('~') || rawSpan.StartsWith('⟦'))
                 {
                     var folder = ResolveFolder(raw);
+                    // a shorter match of the same path (cut at a space) adds nothing
+                    if (trigger.Folders.Any(f => f.StartsWith(folder, Paths.Cmp))) continue;
                     if (!trigger.Folders.Contains(folder, Paths.Comparer)) trigger.Folders.Add(folder);
                 }
             }
