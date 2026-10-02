@@ -309,6 +309,27 @@ public class ApiServer(NexusEngine engine)
                         e.FireEventRules(TriggerKind.connectorEvent, payload);
                         return (200, N(new { accepted = payload["connectorEvent"] }));
                     }
+                case ("GET", ["v1", "f1"]):
+                    {
+                        if (!e.Settings.F1Enabled) return (409, N(new { error = "F1 module is off" }));
+                        var live = await e.F1.Live();
+                        var next = await e.F1.NextRace();
+                        return (200, N(new
+                        {
+                            summary = await e.F1.Summary("auto", e.Settings.F1Favourite),
+                            live = live == null ? null : new
+                            {
+                                session = live.Session.Title, type = live.Session.Type, status = live.Status, lap = live.Lap, running = live.Running,
+                                startsAt = Time.Iso(live.Session.StartUtc), endsAt = Time.Iso(live.Session.EndUtc),
+                                weather = live.Weather?.Summary,
+                                rows = live.Rows.Take(25).Select(r => new { pos = r.Position, driver = r.Driver.Acronym, name = r.Driver.FullName, team = r.Driver.Team, gap = r.Gap, interval = r.Int, last = r.Last, best = r.Best, tyre = r.Tyre, lap = r.Lap }),
+                                messages = live.Messages.Take(10).Select(m => new { time = m.Time, flag = m.Flag ?? "", text = m.Text }),
+                            },
+                            next = next == null ? null : new { name = next.Name, circuit = next.Circuit, country = next.Country, startsAt = Time.Iso(next.StartUtc), countdown = next.Countdown, sessions = next.Sessions.Select(x => new { name = x.name, startsAt = Time.Iso(x.startUtc) }) },
+                        }));
+                    }
+                case ("GET", ["v1", "f1", "standings"]):
+                    return (200, N(new { drivers = await e.F1.DriverStandings(), constructors = await e.F1.ConstructorStandings() }));
                 case ("GET", ["v1", "settings"]): return (200, N(e.Settings));
                 case ("POST", ["v1", "settings"]):
                     {

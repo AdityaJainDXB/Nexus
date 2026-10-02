@@ -31,7 +31,7 @@ public partial class MainWindow : Window
     {
         ["today"] = () => new TodayPage(), ["review"] = () => new ReviewPage(), ["files"] = () => new FilesPage(), ["projects"] = () => new ProjectsPage(),
         ["rules"] = () => new RulesPage(), ["tasks"] = () => new TasksPage(), ["insights"] = () => new InsightsPage(), ["activity"] = () => new ActivityPage(),
-        ["remote"] = () => new RemotePage(), ["settings"] = () => new SettingsPage(),
+        ["remote"] = () => new RemotePage(), ["settings"] = () => new SettingsPage(), ["f1"] = () => new F1Page(),
     };
     public string Current { get; private set; } = "today";
 
@@ -40,6 +40,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = AppState.Shared;
         AskHint.Text = AppState.Shared.Settings.PaletteHotkey;
+        F1Nav.Visibility = AppState.Shared.Settings.F1Enabled ? Visibility.Visible : Visibility.Collapsed;
         Page.Content = pages["today"]();
         AppState.Shared.Navigate += p => Dispatcher.BeginInvoke(() => Navigate(p));
         AppState.Shared.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(AppState.EngineStatus)) UpdateDot(); };

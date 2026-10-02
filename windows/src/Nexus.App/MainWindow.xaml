@@ -67,6 +67,7 @@
                             </DockPanel>
                         </RadioButton>
                         <RadioButton Style="{StaticResource NavItem}" Tag="activity" Checked="Nav_Checked" GroupName="nav"><TextBlock Text="↺  Activity" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/></RadioButton>
+                        <RadioButton x:Name="F1Nav" Style="{StaticResource NavItem}" Tag="f1" Checked="Nav_Checked" GroupName="nav"><TextBlock Text="⬣  Formula 1" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/></RadioButton>
                         <TextBlock Text="SYSTEM" Style="{StaticResource Section}" Margin="8,14,0,6"/>
                         <RadioButton Style="{StaticResource NavItem}" Tag="remote" Checked="Nav_Checked" GroupName="nav"><TextBlock Text="▯  iPhone Remote" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/></RadioButton>
                         <RadioButton Style="{StaticResource NavItem}" Tag="settings" Checked="Nav_Checked" GroupName="nav"><TextBlock Text="⚙  Settings" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/></RadioButton>

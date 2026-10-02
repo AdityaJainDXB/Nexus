@@ -137,6 +137,17 @@ public partial class SettingsPage : UserControl
         Switch(look, "Start Nexus when I sign in", Cfg.LaunchAtLogin, v => Cfg.LaunchAtLogin = v);
         Switch(look, "Notifications", Cfg.NotificationsEnabled, v => Cfg.NotificationsEnabled = v);
 
+        var f1 = Card("Formula 1 module", "Live timing, race control and championship standings from public feeds (OpenF1 · Jolpica). Unofficial, no account needed.");
+        Switch(f1, "Show the Formula 1 page", Cfg.F1Enabled, v => Cfg.F1Enabled = v);
+        Switch(f1, "Tell me 15 minutes before a session, and the result after", Cfg.F1Notifications, v => Cfg.F1Notifications = v);
+        var fav = new DockPanel { Margin = new Thickness(0, 5, 0, 5) };
+        var favBox = new TextBox { Text = Cfg.F1Favourite, Width = 200, ToolTip = "Driver code or name, e.g. NOR" };
+        favBox.LostFocus += (_, _) => { Cfg.F1Favourite = favBox.Text.Trim(); Save(); };
+        DockPanel.SetDock(favBox, Dock.Right);
+        fav.Children.Add(favBox);
+        fav.Children.Add(new TextBlock { Text = "Favourite driver (highlighted in answers)", VerticalAlignment = VerticalAlignment.Center });
+        P(f1).Children.Add(fav);
+
         var adv = Card("Advanced");
         Switch(adv, "Allow rules to run PowerShell scripts", Cfg.AllowScripts, v => Cfg.AllowScripts = v);
         Switch(adv, "Local API for scripts & nexusctl (127.0.0.1 only)", Cfg.ApiEnabled, v => Cfg.ApiEnabled = v);

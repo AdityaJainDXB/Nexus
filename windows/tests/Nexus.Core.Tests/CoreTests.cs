@@ -354,6 +354,98 @@ public class EngineTests : IDisposable
     }
 }
 
+public class F1Tests
+{
+    static F1Service Service() => new() { BaseOverride = Path.Combine(AppContext.BaseDirectory, "fixtures", "f1"), Now = () => new DateTime(2026, 9, 26, 12, 30, 0, DateTimeKind.Utc) };
+
+    [Fact]
+    public async Task ReadsLiveTiming()
+    {
+        var f1 = Service();
+        var session = await f1.LatestSession();
+        Assert.NotNull(session);
+        Assert.Equal("Race", session!.Type);
+        Assert.Equal("Baku", session.Circuit);
+        Assert.True(session.IsLive(new DateTime(2026, 9, 26, 12, 30, 0, DateTimeKind.Utc)));
+        Assert.False(session.IsLive(new DateTime(2026, 9, 27, 12, 30, 0, DateTimeKind.Utc)));
+
+        var live = await f1.Live();
+        Assert.NotNull(live);
+        Assert.NotEmpty(live!.Rows);
+        Assert.Equal(live.Rows.OrderBy(r => r.Position).Select(r => r.Position), live.Rows.Select(r => r.Position));
+        var leader = live.Rows[0];
+        Assert.Equal("LEADER", leader.Gap);
+        Assert.NotEqual("", leader.Driver.Acronym);
+        Assert.All(live.Rows, r => Assert.False(string.IsNullOrWhiteSpace(r.Driver.Team)));
+        Assert.Contains(live.Rows, r => r.LastLap > 0);
+        Assert.Contains(live.Rows, r => r.Compound is "SOFT" or "MEDIUM" or "HARD");
+        Assert.NotNull(live.Weather);
+        Assert.NotEmpty(live.Messages);
+
+        var text = F1Service.LiveText(live, leader.Driver.Acronym);
+        Assert.Contains("Baku", text);
+        Assert.Contains("P1 " + leader.Driver.Acronym, text);
+    }
+
+    [Fact]
+    public void FormatsLapTimes()
+    {
+        Assert.Equal("1:48.488", F1Row.Format(108.488));
+        Assert.Equal("58.900", F1Row.Format(58.9));
+    }
+
+    [Fact]
+    public async Task ReadsScheduleAndStandings()
+    {
+        var f1 = Service();
+        var next = await f1.NextRace();
+        Assert.NotNull(next);
+        Assert.Contains("Grand Prix", next!.Name);
+        Assert.NotEmpty(next.Sessions);
+        Assert.Equal("Race", next.Sessions[^1].name);
+        Assert.Contains("in ", next.Countdown);
+
+        var drivers = await f1.DriverStandings();
+        var teams = await f1.ConstructorStandings();
+        Assert.NotEmpty(drivers);
+        Assert.Equal(1, drivers[0].Position);
+        Assert.True(drivers[0].Points >= drivers[1].Points);
+        Assert.NotEmpty(teams);
+        Assert.Contains(drivers[0].Code, F1Service.StandingsText(drivers, teams));
+
+        var (race, order) = await f1.LastResults();
+        Assert.NotEmpty(order);
+        Assert.Contains("P1", F1Service.ResultsText(race, order));
+    }
+
+    [Theory]
+    [InlineData("f1", "auto")]
+    [InlineData("f1 live", "auto")]
+    [InlineData("f1 live timing", "auto")]
+    [InlineData("formula 1 standings", "standings")]
+    [InlineData("f1 championship", "standings")]
+    [InlineData("next race", "next")]
+    [InlineData("when is the next grand prix", "next")]
+    [InlineData("f1 results", "results")]
+    [InlineData("who won the last f1 race", "results")]
+    [InlineData("who is leading the race", "auto")]
+    public void ParsesF1Commands(string input, string kind)
+    {
+        var intent = new CommandParser(new NLRuleCompiler()).Parse(input)[0].Intent;
+        var f1 = Assert.IsType<Intent.F1>(intent);
+        Assert.Equal(kind, f1.Kind);
+    }
+
+    [Fact]
+    public void LeavesOtherCommandsAlone()
+    {
+        var parser = new CommandParser(new NLRuleCompiler());
+        Assert.IsNotType<Intent.F1>(parser.Parse("organize Downloads")[0].Intent);
+        Assert.IsNotType<Intent.F1>(parser.Parse("find my f1 telemetry notes")[0].Intent);
+        Assert.IsNotType<Intent.F1>(parser.Parse("when is the brightsparks invoice due?")[0].Intent);
+    }
+}
+
 public class RemoteCryptoTests
 {
     [Fact]

@@ -430,6 +430,11 @@ public class NexusSettings
     public string SlackWebhook { get; set; } = "";
     public bool AllowScripts { get; set; }
 
+    // F1 module
+    public bool F1Enabled { get; set; } = true;
+    public bool F1Notifications { get; set; } = true;
+    public string F1Favourite { get; set; } = "";   // driver code or name to highlight, e.g. "NOR"
+
     public List<string> WatchedFoldersExpanded => WatchedFolders.Select(Paths.Expand).ToList();
     public List<string> LibraryRootsExpanded => LibraryRoots.Select(Paths.Expand).ToList();
 }

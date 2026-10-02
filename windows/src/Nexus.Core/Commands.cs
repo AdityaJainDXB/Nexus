@@ -42,6 +42,7 @@ public abstract record Intent
     public sealed record SmartFile(FileQuery Query) : Intent;
     public sealed record CleanDuplicates : Intent;
     public sealed record CleanSimilarScreenshots : Intent;
+    public sealed record F1(string Kind) : Intent;
     public sealed record Unknown(string Text) : Intent;
 
     public string Label => this switch
@@ -50,12 +51,12 @@ public abstract record Intent
         CreateRule => "Create rule", ScheduleIt => "Schedule", Organize => "Organize", FindDuplicates => "Find duplicates", Report => "Report", CreateProject => "Create project",
         Focus => "Start focus", EndFocus => "End focus", Undo => "Undo", Archive => "Archive", Pause => "Pause automations", Resume => "Resume automations", Navigate => "Open",
         LearnTaxonomy => "Learn folders", RunRule => "Run rule", Classify => "Classify", Ask => "Answer from your files", Briefing => "Briefing", SmartFile => "File it",
-        CleanDuplicates => "Clean up duplicates", CleanSimilarScreenshots => "Clean up similar screenshots", _ => "Ask"
+        CleanDuplicates => "Clean up duplicates", CleanSimilarScreenshots => "Clean up similar screenshots", F1 => "Formula 1", _ => "Ask"
     };
 
     public bool IsMutating => this switch
     {
-        Find or SummarizeFolder or SummarizeQuery or SummarizeProject or Navigate or Unknown or Ask or Briefing => false,
+        Find or SummarizeFolder or SummarizeQuery or SummarizeProject or Navigate or Unknown or Ask or Briefing or F1 => false,
         FileActions fa => fa.Actions.Any(a => a.Kind is not (ActionKind.summarize or ActionKind.revealInFinder or ActionKind.openFile)),
         _ => true
     };
@@ -130,6 +131,7 @@ public class CommandParser(NLRuleCompiler compiler)
             case "end focus" or "stop focus" or "exit focus" or "stop focusing": return new Intent.EndFocus();
             case "learn my folders" or "learn folders" or "learn my folder structure" or "relearn taxonomy": return new Intent.LearnTaxonomy();
         }
+        if (ParseF1(l) is { } f1) return f1;
         if (Regex.IsMatch(l, @"^(?:brief me|briefing|daily briefing|morning briefing|good morning|what'?s (?:up|new|on my plate)|catch me up|what did i miss)\b")) return new Intent.Briefing();
         if (s.Captures(@"^(?:file|put away|tidy|organi[sz]e|sort)\s+(this|these|this file|these files|the selection|selected files|the selected files|this document)$") is { } sf) return new Intent.SmartFile(Query(sf[1]));
         if (s.Captures(@"^summari[sz]e\s+(this|these|this file|these files|this document|the selection|selected files)$") is { } sq) return new Intent.SummarizeQuery(Query(sq[1]));
@@ -191,6 +193,21 @@ public class CommandParser(NLRuleCompiler compiler)
         var q = Query(s);
         if (q.Conditions.Count >= 1 && s.Split(' ').Length <= 8) return new Intent.Find(q);
         return new Intent.Unknown(s);
+    }
+
+    /// Formula 1: "f1", "f1 live", "f1 standings", "next race", "who won the last race".
+    public static Intent? ParseF1(string lower)
+    {
+        var l = lower.Trim().TrimEnd('?', '.');
+        var isF1 = Regex.IsMatch(l, @"\b(f1|formula\s?1|grand prix|\bgp\b)\b");
+        if (Regex.IsMatch(l, @"^(?:when(?:'s| is)?\s+)?(?:the\s+)?next\s+(?:f1\s+)?(?:race|grand prix|gp|session)\b") || (isF1 && Regex.IsMatch(l, @"\bnext\b.*\b(race|session|gp|grand prix)\b")))
+            return new Intent.F1("next");
+        if (isF1 && Regex.IsMatch(l, @"\b(standings?|championship|points|leader(?:board)?s?\s+table)\b")) return new Intent.F1("standings");
+        if (isF1 && Regex.IsMatch(l, @"\b(results?|who won|podium|finished)\b")) return new Intent.F1("results");
+        if (Regex.IsMatch(l, @"^(?:f1|formula\s?1)(?:\s+(?:live|timing|now|live timing|session|race))?$")) return new Intent.F1("auto");
+        if (isF1 && Regex.IsMatch(l, @"\b(live|timing|who(?:'s| is)\s+(?:leading|winning|in the lead)|position|gap)\b")) return new Intent.F1("auto");
+        if (Regex.IsMatch(l, @"^who(?:'s| is)\s+(?:leading|winning)\s+the\s+(?:race|grand prix|f1)")) return new Intent.F1("auto");
+        return null;
     }
 
     Intent FileActions(string subject, string body)

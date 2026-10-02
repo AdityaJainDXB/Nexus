@@ -27,7 +27,7 @@ public static class ScreenshotMode
             w.Show();
             await Task.Delay(500);
         });
-        string[] pages = ["today", "review", "files", "projects", "rules", "tasks", "insights", "activity", "remote", "settings"];
+        string[] pages = ["today", "review", "files", "projects", "rules", "tasks", "insights", "activity", "f1", "remote", "settings"];
         for (var i = 0; i < pages.Length && w != null; i++)
         {
             var page = pages[i]; var n = i + 1;

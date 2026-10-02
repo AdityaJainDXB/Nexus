@@ -52,6 +52,7 @@ public class NexusEngine : IActionHost
     public InsightsEngine Insights { get; }
     public ReportGenerator Reports { get; }
     public LlmRouter Llm { get; } = new();
+    public F1Service F1 { get; } = new();
     public FileWatcher Watcher { get; } = new();
     public FileStabilizer Stabilizer { get; } = new();
 
@@ -124,6 +125,7 @@ public class NexusEngine : IActionHost
             ("prune", TimeSpan.FromHours(24), Store.PruneJobs),
             ("digest", TimeSpan.FromMinutes(1), () => { FlushDigest(); MarkAlive(); }),
             ("projectLinks", TimeSpan.FromMinutes(10), FlushProjectLinks),
+            ("f1", TimeSpan.FromMinutes(5), () => _ = CheckF1()),
         ]);
         Scheduler.Start();
         Monitor.OnEvent = (kind, info) => FireEventRules(kind, info);
@@ -878,6 +880,7 @@ public class NexusEngine : IActionHost
                     }
                 case Intent.Ask a: ps.Note = $"Searching your files for: {a.Question}"; break;
                 case Intent.Briefing: ps.Note = "Today’s briefing"; break;
+                case Intent.F1 f1: ps.Note = f1.Kind switch { "standings" => "F1 championship standings", "results" => "Last F1 race result", "next" => "Next F1 session", _ => "Formula 1 live timing" }; break;
                 case Intent.Unknown u: ps.Note = $"Not sure how to do “{u.Text}”. Try: organize Downloads · find invoices from last month · create rule: …"; break;
                 default: ps.Note = s.Intent.Label; break;
             }
@@ -1033,6 +1036,10 @@ public class NexusEngine : IActionHost
                         messages.Add(answer); result.Files = sources; previous = sources; break;
                     }
                 case Intent.Briefing: messages.Add(await Briefing()); break;
+                case Intent.F1 f1:
+                    messages.Add(Settings.F1Enabled ? await F1.Summary(f1.Kind, Settings.F1Favourite) : "The Formula 1 module is off — turn it on in Settings.");
+                    result.Navigate = f1.Kind == "auto" ? "f1" : result.Navigate;
+                    break;
                 case Intent.Unknown u:
                     {
                         if (await Llm.Provider() is { } p)
@@ -1314,6 +1321,36 @@ public class NexusEngine : IActionHost
             Store.SaveSnapshot(folder, size, count);
         }
     });
+
+    /// Reminds you 15 minutes before a session, and reports the result once the chequered flag falls.
+    public async Task CheckF1()
+    {
+        if (!Settings.F1Enabled || !Settings.F1Notifications) return;
+        try
+        {
+            if (await F1.NextRace() is { } race)
+                foreach (var (name, startUtc) in race.Sessions)
+                {
+                    var minutes = (startUtc - DateTime.UtcNow).TotalMinutes;
+                    var key = $"f1.notified.{race.Round}.{name}";
+                    if (minutes is > 0 and <= 15 && Store.Kv(key) == null)
+                    {
+                        Store.SetKv(key, "1");
+                        Notify($"F1 · {name} starts in {(int)Math.Max(1, minutes)} min", $"{race.Name} — {race.Circuit}", true);
+                    }
+                }
+            if (await F1.Live() is { Rows.Count: > 0 } live && !live.Running && DateTime.UtcNow - live.Session.EndUtc < TimeSpan.FromHours(3))
+            {
+                var key = $"f1.result.{live.Session.SessionKey}";
+                if (Store.Kv(key) == null)
+                {
+                    Store.SetKv(key, "1");
+                    Notify($"F1 · {live.Session.Title} finished", string.Join(" · ", live.Rows.Take(3).Select(r => $"P{r.Position} {r.Driver.Acronym}")), true);
+                }
+            }
+        }
+        catch { }
+    }
 
     void FlushProjectLinks()
     {
