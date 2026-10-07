@@ -416,6 +416,11 @@ public class UpdaterTests : IDisposable
         Assert.EndsWith("SHA256SUMS-windows.txt", release.ChecksumsUrl);
         Assert.Equal(UpdateStage.Available, u.State.Stage);
         Assert.NotNull(u.LastChecked);
+        Assert.Equal(2, release.Highlights.Count);
+        Assert.DoesNotContain("*", release.Highlights[0]);                      // markdown is stripped…
+        Assert.DoesNotContain("`", release.Highlights[0]);
+        Assert.StartsWith("• Formula 1 module", release.Highlights[0]);
+        Assert.True(release.Highlights[0].Length <= 122);                       // …and long lines are cut
     }
 
     [Fact]

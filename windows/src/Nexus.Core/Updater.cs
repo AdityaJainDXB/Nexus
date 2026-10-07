@@ -8,6 +8,16 @@ namespace Nexus.Core;
 public record ReleaseInfo(string Version, string Name, string Notes, string Url, string? AssetUrl, string? AssetName, long AssetSize, string? ChecksumsUrl, DateTime PublishedAt)
 {
     public string SizeText => AssetSize > 0 ? Text.FormatBytes(AssetSize) : "";
+
+    /// Bullet lines from the release notes, as plain text for the little "what's new" list.
+    public List<string> Highlights => Notes.Split('\n').Select(l => l.Trim())
+        .Where(l => l.StartsWith('-') || l.StartsWith("* "))
+        .Take(5)
+        .Select(l =>
+        {
+            var t = l.TrimStart('-', '*', ' ').Replace("**", "").Replace("`", "");
+            return "• " + (t.Length > 120 ? t[..117].TrimEnd() + "…" : t);
+        }).ToList();
 }
 
 public enum UpdateStage { Idle, Checking, Available, Downloading, Verifying, Ready, Installing, UpToDate, Failed }

@@ -368,7 +368,11 @@ final class UpdaterTests: XCTestCase {
         XCTAssertEqual(release.assetName, "Nexus-1.2.0.dmg")        // the .dmg, not the Windows installer
         XCTAssertEqual(u.state.stage, .available)
         XCTAssertNotNil(u.lastChecked)
-        XCTAssertFalse(release.highlights.isEmpty)
+        XCTAssertEqual(release.highlights.count, 2)
+        XCTAssertFalse(release.highlights[0].contains("*"))       // markdown is stripped…
+        XCTAssertFalse(release.highlights[0].contains("`"))
+        XCTAssertTrue(release.highlights[0].hasPrefix("• Formula 1 module"))
+        XCTAssertLessThanOrEqual(release.highlights[0].count, 122) // …and long lines are cut
     }
 
     func testUpToDateAndSkipping() async throws {

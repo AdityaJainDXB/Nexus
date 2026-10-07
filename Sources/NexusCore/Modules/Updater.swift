@@ -14,11 +14,16 @@ public struct ReleaseInfo: Hashable, Sendable {
     public var publishedAt: Date
 
     public var sizeText: String { assetSize > 0 ? formatBytes(assetSize) : "" }
-    /// Bullet lines from the release notes, for the little "what's new" list.
+    /// Bullet lines from the release notes, as plain text for the little "what's new" list.
     public var highlights: [String] {
         let lines: [String] = notes.split(separator: "\n").map { String($0).trimmed }
-        let bullets: [String] = lines.filter { $0.hasPrefix("-") || $0.hasPrefix("*") }
-        return bullets.prefix(5).map { "• " + $0.trimmingCharacters(in: CharacterSet(charactersIn: "-* ")) }
+        let bullets: [String] = lines.filter { $0.hasPrefix("-") || $0.hasPrefix("* ") }
+        return bullets.prefix(5).map { line in
+            var text = line.trimmingCharacters(in: CharacterSet(charactersIn: "-* "))
+            text = text.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "`", with: "")
+            if text.count > 120 { text = String(text.prefix(117)).trimmed + "…" }
+            return "• " + text
+        }
     }
 }
 

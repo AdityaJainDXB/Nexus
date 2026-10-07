@@ -1,12 +1,24 @@
 {
   "tag_name": "v1.2.0",
   "name": "Nexus 1.2.0",
-  "body": "## What's new\n- Formula 1 module\n- Faster indexing\n",
+  "body": "## What's new\n- **Formula 1 module** — live timing, `race control` and standings, with a switch to turn it off entirely when you would rather not have it\n- Faster indexing\n",
   "html_url": "https://github.com/AdityaJainDXB/Nexus/releases/tag/v1.2.0",
   "published_at": "2026-10-01T09:00:00Z",
   "assets": [
-    {"name": "Nexus-Setup-1.2.0-x64.exe", "browser_download_url": "https://example.invalid/Nexus-Setup-1.2.0-x64.exe", "size": 1218615876},
-    {"name": "Nexus-1.2.0.dmg", "browser_download_url": "https://example.invalid/Nexus-1.2.0.dmg", "size": 1117342322},
-    {"name": "SHA256SUMS-windows.txt", "browser_download_url": "https://example.invalid/SHA256SUMS-windows.txt", "size": 268}
+    {
+      "name": "Nexus-Setup-1.2.0-x64.exe",
+      "browser_download_url": "https://example.invalid/Nexus-Setup-1.2.0-x64.exe",
+      "size": 1218615876
+    },
+    {
+      "name": "Nexus-1.2.0.dmg",
+      "browser_download_url": "https://example.invalid/Nexus-1.2.0.dmg",
+      "size": 1117342322
+    },
+    {
+      "name": "SHA256SUMS-windows.txt",
+      "browser_download_url": "https://example.invalid/SHA256SUMS-windows.txt",
+      "size": 268
+    }
   ]
 }

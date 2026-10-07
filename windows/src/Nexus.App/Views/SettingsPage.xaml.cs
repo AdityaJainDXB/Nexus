@@ -102,7 +102,7 @@ public partial class SettingsPage : UserControl
                 Text = $"You have {S.Updater.CurrentVersion} · published {r.PublishedAt.ToLocalTime():d MMM yyyy}{(r.SizeText.Length > 0 ? " · " + r.SizeText : "")}",
                 Style = (Style)FindResource("Muted"), Margin = new Thickness(0, 2, 0, 8),
             });
-            var notes = r.Notes.Split('\n').Where(l => l.TrimStart().StartsWith('-') || l.TrimStart().StartsWith('*')).Take(5).Select(l => "• " + l.TrimStart('-', '*', ' ')).ToList();
+            var notes = r.Highlights;
             if (notes.Count > 0)
                 panel.Children.Add(new TextBlock { Text = string.Join("\n", notes), Style = (Style)FindResource("Muted"), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.None, Margin = new Thickness(0, 0, 0, 10) });
 
