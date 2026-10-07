@@ -81,7 +81,7 @@ public class Tray
 {
     public static Tray Shared { get; } = new();
     Forms.NotifyIcon? icon;
-    Forms.ToolStripMenuItem? statusItem, reviewItem, pauseItem;
+    Forms.ToolStripMenuItem? statusItem, reviewItem, pauseItem, updateItem;
 
     public void Show()
     {
@@ -95,8 +95,9 @@ public class Tray
         statusItem = new Forms.ToolStripMenuItem("Nexus · Idle") { Enabled = false };
         reviewItem = new Forms.ToolStripMenuItem("Review Queue", null, (_, _) => App.ShowMain("review"));
         pauseItem = new Forms.ToolStripMenuItem("Pause automations", null, (_, _) => AppState.Shared.Engine.SetPaused(!AppState.Shared.Engine.Paused));
+        updateItem = new Forms.ToolStripMenuItem("Update available", null, (_, _) => App.ShowMain("settings")) { Visible = false, Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold) };
         menu.Items.AddRange([
-            statusItem, new Forms.ToolStripSeparator(),
+            statusItem, updateItem, new Forms.ToolStripSeparator(),
             new Forms.ToolStripMenuItem($"Ask Nexus…  ({AppState.Shared.Settings.PaletteHotkey})", null, (_, _) => Palette.Toggle()),
             new Forms.ToolStripMenuItem($"Talk to Nexus  ({AppState.Shared.Settings.VoiceHotkey})", null, (_, _) => Palette.ShowVoice()),
             new Forms.ToolStripMenuItem("Organize Downloads", null, async (_, _) => await AppState.Shared.RunCommand("organize Downloads")),
@@ -113,6 +114,14 @@ public class Tray
         icon.ContextMenuStrip = menu;
         icon.MouseClick += (_, e) => { if (e.Button == Forms.MouseButtons.Left) App.ShowMain(null); };
         icon.BalloonTipClicked += (_, _) => App.ShowMain(AppState.Shared.ReviewCount > 0 ? "review" : "today");
+    }
+
+    /// Shows "Update available — 1.2.0" in the tray menu while a newer release is waiting.
+    public void SetUpdate(string version)
+    {
+        if (updateItem == null) return;
+        updateItem.Visible = version.Length > 0;
+        updateItem.Text = version.Length > 0 ? $"Update available — {version}" : "Update available";
     }
 
     public void SetStatus(EngineStatus s, int review)

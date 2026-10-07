@@ -403,3 +403,94 @@ final class UpdaterTests: XCTestCase {
         XCTAssertTrue(u.state.message?.contains("Couldn't check") ?? false)
     }
 }
+
+// MARK: - Updater: download, verify, install (real files, real disk image)
+
+final class UpdaterInstallTests: XCTestCase {
+    private var tmp: URL!
+    private var store: NexusStore!
+
+    override func setUp() {
+        tmp = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("nexus-upi-\(UUID().uuidString.prefix(6))")
+        try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        setenv("NEXUS_HOME", tmp.appendingPathComponent("support").path, 1)
+        store = try! NexusStore(path: tmp.appendingPathComponent("u.sqlite").path)
+    }
+    override func tearDown() { try? FileManager.default.removeItem(at: tmp) }
+
+    private func release(file: URL, name: String, sums: URL?) -> ReleaseInfo {
+        let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int64) ?? 0
+        return ReleaseInfo(version: "9.9.9", name: "Nexus 9.9.9", notes: "- test", url: "https://example.invalid",
+                           assetURL: file.absoluteString, assetName: name, assetSize: size, checksumsURL: sums?.absoluteString, publishedAt: Date())
+    }
+
+    func testDownloadVerifiesChecksum() async throws {
+        let payload = tmp.appendingPathComponent("served.dmg")
+        try Data((0..<400_000).map { UInt8($0 % 251) }).write(to: payload)
+        let sha = try Updater.sha256(of: payload)
+        let sums = tmp.appendingPathComponent("SHA256SUMS.txt")
+        try "\(sha)  Nexus-9.9.9.dmg\n".write(to: sums, atomically: true, encoding: .utf8)
+
+        let u = Updater(store: store, currentVersion: "1.0.0")
+        let path = await u.download(release(file: payload, name: "Nexus-9.9.9.dmg", sums: sums))
+        XCTAssertNotNil(path)
+        XCTAssertEqual(u.state.stage, .ready)
+        XCTAssertEqual(try Updater.sha256(of: URL(fileURLWithPath: path!)), sha)
+    }
+
+    func testTamperedDownloadIsRejectedAndDeleted() async throws {
+        let payload = tmp.appendingPathComponent("served2.dmg")
+        try Data(repeating: 7, count: 200_000).write(to: payload)
+        let sums = tmp.appendingPathComponent("SHA256SUMS2.txt")
+        try "\(String(repeating: "0", count: 64))  Nexus-bad.dmg\n".write(to: sums, atomically: true, encoding: .utf8)
+
+        let u = Updater(store: store, currentVersion: "1.0.0")
+        let path = await u.download(release(file: payload, name: "Nexus-bad.dmg", sums: sums))
+        XCTAssertNil(path)
+        XCTAssertEqual(u.state.stage, .failed)
+        XCTAssertTrue(u.state.message?.contains("checksum") ?? false)
+        let leftovers = (try? FileManager.default.contentsOfDirectory(atPath: Paths.appSupport.appendingPathComponent("Updates").path)) ?? []
+        XCTAssertFalse(leftovers.contains("Nexus-bad.dmg"))
+    }
+
+    /// Builds a real .dmg containing a tiny "Nexus.app", then installs it over an older copy.
+    func testInstallSwapsTheApp() throws {
+        let fm = FileManager.default
+        func makeApp(at dir: URL, marker: String) throws {
+            let app = dir.appendingPathComponent("Nexus.app/Contents")
+            try fm.createDirectory(at: app, withIntermediateDirectories: true)
+            try marker.write(to: app.appendingPathComponent("version.txt"), atomically: true, encoding: .utf8)
+        }
+        let src = tmp.appendingPathComponent("dmgsrc")
+        try makeApp(at: src, marker: "NEW 9.9.9")
+        let dmg = tmp.appendingPathComponent("Nexus-9.9.9.dmg")
+        let (made, out) = Shell.run("/usr/bin/hdiutil", ["create", "-srcfolder", src.path, "-volname", "Nexus", "-format", "UDZO", "-quiet", dmg.path], timeout: 300)
+        XCTAssertEqual(made, 0, out)
+
+        let apps = tmp.appendingPathComponent("Applications")
+        try makeApp(at: apps, marker: "OLD 1.0.0")
+        let target = apps.appendingPathComponent("Nexus.app").path
+
+        let u = Updater(store: store, currentVersion: "1.0.0")
+        XCTAssertTrue(u.install(dmg.path, appPath: target, relaunch: false))
+        XCTAssertEqual(try String(contentsOfFile: target + "/Contents/version.txt", encoding: .utf8), "NEW 9.9.9")
+        XCTAssertFalse(fm.fileExists(atPath: target + ".old"), "backup should be cleaned up")
+        let hidden = (try fm.contentsOfDirectory(atPath: apps.path)).filter { $0.hasPrefix(".Nexus-update") }
+        XCTAssertTrue(hidden.isEmpty, "staging copy should be gone")
+    }
+
+    func testInstallLeavesTheOldAppWhenTheImageIsBad() throws {
+        let fm = FileManager.default
+        let apps = tmp.appendingPathComponent("Applications")
+        let old = apps.appendingPathComponent("Nexus.app/Contents")
+        try fm.createDirectory(at: old, withIntermediateDirectories: true)
+        try "OLD".write(to: old.appendingPathComponent("version.txt"), atomically: true, encoding: .utf8)
+        let junk = tmp.appendingPathComponent("junk.dmg")
+        try Data(repeating: 1, count: 4096).write(to: junk)
+
+        let u = Updater(store: store, currentVersion: "1.0.0")
+        XCTAssertFalse(u.install(junk.path, appPath: apps.appendingPathComponent("Nexus.app").path, relaunch: false))
+        XCTAssertEqual(u.state.stage, .failed)
+        XCTAssertEqual(try String(contentsOf: old.appendingPathComponent("version.txt"), encoding: .utf8), "OLD")
+    }
+}

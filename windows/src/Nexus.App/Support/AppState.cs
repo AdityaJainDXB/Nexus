@@ -160,6 +160,7 @@ public class AppState : Observable
         {
             Set(ref updateState, value);
             Raise(nameof(UpdateBadge));
+            Tray.Shared.SetUpdate(UpdateBadge);
             if (value.Stage == UpdateStage.Available && value.Release is { } r && Engine.Store.Kv("update.announced") != r.Version)
             {
                 Engine.Store.SetKv("update.announced", r.Version);

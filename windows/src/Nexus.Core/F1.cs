@@ -47,15 +47,13 @@ public record F1Standing(int Position, string Code, string Name, string Team, do
 public record F1Race(string Name, string Circuit, string Locality, string Country, DateTime StartUtc, int Round, List<(string name, DateTime startUtc)> Sessions)
 {
     public DateTime StartLocal => StartUtc.ToLocalTime();
-    public string Countdown
+    public string Countdown => CountdownAt(DateTime.UtcNow);
+    public string CountdownAt(DateTime nowUtc)
     {
-        get
-        {
-            var d = StartUtc - DateTime.UtcNow;
-            if (d.TotalSeconds <= 0) return "under way";
-            if (d.TotalDays >= 1) return $"in {(int)d.TotalDays}d {d.Hours}h";
-            return d.TotalHours >= 1 ? $"in {(int)d.TotalHours}h {d.Minutes}m" : $"in {(int)d.TotalMinutes}m";
-        }
+        var d = StartUtc - nowUtc;
+        if (d.TotalSeconds <= 0) return "under way";
+        if (d.TotalDays >= 1) return $"in {(int)d.TotalDays}d {d.Hours}h";
+        return d.TotalHours >= 1 ? $"in {(int)d.TotalHours}h {d.Minutes}m" : $"in {(int)d.TotalMinutes}m";
     }
 }
 

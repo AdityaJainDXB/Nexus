@@ -106,6 +106,10 @@
 
 **🧩 Widgets** — status, insights and a one-tap “Talk to Nexus” widget for your desktop and Notification Center.
 
+**🏁 Formula 1 module** — live timing board (order, gaps, intervals, last/best laps, tyres), race-control flags, weather, a countdown to the next session and the championships. Ask *“f1”*, *“f1 standings”*, *“next race”* or *“who won the last race?”* by voice or text; Nexus can ping you 15 minutes before each session and tell you the result. Public feeds (OpenF1, Jolpica), no account, switch it off in Settings.
+
+**🔄 Updates you control** — Nexus checks GitHub Releases and shows **Update available** in Settings, the menu bar / tray and a notification. Choose **Update now**, **Not now** or **Skip this version**; the download is verified against its published SHA-256 before anything is installed. Don't want it? Turn **Check for updates automatically** off and Nexus never contacts GitHub.
+
 **🛡 Built to be trusted** — every change is journaled and undoable, deletes go to the Trash, a runaway guard pauses automations if something goes wrong, system and `~/Library` locations are protected, scripts run sandboxed, secrets stay in the Keychain.
 
 ## Install
@@ -153,6 +157,9 @@ every Sunday at 9am generate weekly report
 focus on Science Fair for 90 minutes
 file this            (with files selected in Finder)
 brief me
+f1 live
+f1 standings
+next race
 ```
 
 ## Privacy

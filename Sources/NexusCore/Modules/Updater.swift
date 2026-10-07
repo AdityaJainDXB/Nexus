@@ -130,7 +130,7 @@ public final class Updater: @unchecked Sendable {
 
             if existing != release.assetSize {
                 set(UpdateState(stage: .downloading, release: release))
-                let (temp, response) = try await session.download(from: url, progress: { [weak self] fraction, done, total in
+                let (temp, response) = try await FileDownloader.download(url, progress: { [weak self] fraction, done, total in
                     self?.set(UpdateState(stage: .downloading, release: release, progress: fraction, message: "\(formatBytes(done)) of \(formatBytes(total))"))
                 })
                 if let http = response as? HTTPURLResponse, http.statusCode >= 400 { throw UpdateError("download failed (\(http.statusCode))") }
@@ -175,13 +175,17 @@ public final class Updater: @unchecked Sendable {
             set(UpdateState(stage: .failed, release: state.release, message: "Nexus can't replace itself at \(Paths.abbreviate(target)) — the disk image is open, drag Nexus into Applications.", downloadedPath: dmgPath))
             return false
         }
-        let mount = "/Volumes/Nexus-update-\(Int(Date().timeIntervalSince1970))"
+        let mount = NSTemporaryDirectory() + "nexus-mount-\(UUID().uuidString.prefix(8))"
+        try? fm.createDirectory(atPath: mount, withIntermediateDirectories: true)
         let (attachCode, _) = Shell.run("/usr/bin/hdiutil", ["attach", dmgPath, "-nobrowse", "-noautoopen", "-mountpoint", mount], timeout: 300)
         guard attachCode == 0 else {
             set(UpdateState(stage: .failed, release: state.release, message: "Couldn't open the disk image", downloadedPath: dmgPath))
             return false
         }
-        defer { _ = Shell.run("/usr/bin/hdiutil", ["detach", mount, "-force"], timeout: 120) }
+        defer {
+            _ = Shell.run("/usr/bin/hdiutil", ["detach", mount, "-force"], timeout: 120)
+            try? fm.removeItem(atPath: mount)
+        }
         let source = mount + "/Nexus.app"
         guard fm.fileExists(atPath: source) else {
             set(UpdateState(stage: .failed, release: state.release, message: "The disk image didn't contain Nexus.app", downloadedPath: dmgPath))
@@ -252,33 +256,52 @@ struct UpdateError: LocalizedError {
     var errorDescription: String? { message }
 }
 
-extension URLSession {
-    /// Download with progress reporting (URLSession's own API reports it only via delegates).
-    func download(from url: URL, progress: @escaping @Sendable (Double, Int64, Int64) -> Void) async throws -> (URL, URLResponse) {
-        let (bytes, response) = try await self.bytes(from: url)
-        let total = response.expectedContentLength
-        let temp = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("nexus-update-\(UUID().uuidString)")
-        FileManager.default.createFile(atPath: temp.path, contents: nil)
-        let handle = try FileHandle(forWritingTo: temp)
-        defer { try? handle.close() }
-        var buffer = Data()
-        buffer.reserveCapacity(1 << 20)
-        var done: Int64 = 0
-        var lastReport = Date()
-        for try await byte in bytes {
-            buffer.append(byte)
-            if buffer.count >= 1 << 20 {
-                try handle.write(contentsOf: buffer)
-                done += Int64(buffer.count)
-                buffer.removeAll(keepingCapacity: true)
-                if Date().timeIntervalSince(lastReport) > 0.25 {
-                    lastReport = Date()
-                    progress(total > 0 ? Double(done) / Double(total) : 0, done, total)
-                }
-            }
+/// Streams a download to disk with progress, using URLSession's download task (fast; no per-byte loops).
+final class FileDownloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    private let progress: @Sendable (Double, Int64, Int64) -> Void
+    private var continuation: CheckedContinuation<(URL, URLResponse), Error>?
+    private var finished: URL?
+    private var lastReport = Date.distantPast
+
+    init(progress: @escaping @Sendable (Double, Int64, Int64) -> Void) { self.progress = progress }
+
+    static func download(_ url: URL, progress: @escaping @Sendable (Double, Int64, Int64) -> Void) async throws -> (URL, URLResponse) {
+        let delegate = FileDownloader(progress: progress)
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 60
+        config.timeoutIntervalForResource = 3600
+        config.httpAdditionalHeaders = ["User-Agent": "Nexus-Updater/1.0"]
+        let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
+        defer { session.finishTasksAndInvalidate() }
+        return try await withCheckedThrowingContinuation { cont in
+            delegate.continuation = cont
+            session.downloadTask(with: url).resume()
         }
-        if !buffer.isEmpty { try handle.write(contentsOf: buffer); done += Int64(buffer.count) }
-        progress(1, done, max(total, done))
-        return (temp, response)
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        guard Date().timeIntervalSince(lastReport) > 0.25 else { return }
+        lastReport = Date()
+        progress(totalBytesExpectedToWrite > 0 ? Double(totalBytesWritten) / Double(totalBytesExpectedToWrite) : 0, totalBytesWritten, totalBytesExpectedToWrite)
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        // the system deletes `location` when this returns — move it somewhere we own
+        let keep = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("nexus-update-\(UUID().uuidString)")
+        do { try FileManager.default.moveItem(at: location, to: keep); finished = keep }
+        catch { finish(.failure(error)) }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if let error { return finish(.failure(error)) }
+        guard let file = finished, let response = task.response else { return finish(.failure(UpdateError("download produced no file"))) }
+        progress(1, task.countOfBytesReceived, task.countOfBytesReceived)
+        finish(.success((file, response)))
+    }
+
+    private func finish(_ result: Result<(URL, URLResponse), Error>) {
+        guard let c = continuation else { return }
+        continuation = nil
+        c.resume(with: result)
     }
 }

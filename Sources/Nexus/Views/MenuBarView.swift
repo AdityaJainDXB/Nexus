@@ -84,6 +84,23 @@ struct MenuBarView: View {
                 }
             }
 
+            if let release = app.updateAvailable {
+                Button {
+                    app.selection = .today
+                    app.openSettings()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.down.circle.fill").foregroundStyle(Theme.accent)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Update available — \(release.version)").font(.system(size: 12, weight: .semibold))
+                            Text("Open Settings → Updates").font(.system(size: 10.5)).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 14).padding(.vertical, 6)
+            }
             Divider()
             HStack {
                 Button("Open Nexus") { app.openMainWindow() }.buttonStyle(PrimaryButtonStyle())

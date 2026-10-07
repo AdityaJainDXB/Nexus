@@ -1,3 +1,4 @@
+using System.Text;
 using System.IO.Compression;
 using System.Text.Json.Nodes;
 using Nexus.Core;
@@ -430,6 +431,78 @@ public class UpdaterTests : IDisposable
     }
 }
 
+public class UpdaterDownloadTests : IDisposable
+{
+    readonly string tmp = Path.Combine(AppContext.BaseDirectory, "updl-" + Guid.NewGuid().ToString("N")[..8]);
+    readonly NexusStore store;
+    readonly string? previousHome = Environment.GetEnvironmentVariable("NEXUS_HOME");
+
+    public UpdaterDownloadTests()
+    {
+        Directory.CreateDirectory(tmp);
+        Environment.SetEnvironmentVariable("NEXUS_HOME", Path.Combine(tmp, "support"));
+        store = new NexusStore(Path.Combine(tmp, "d.sqlite"));
+    }
+    public void Dispose() { store.Dispose(); Environment.SetEnvironmentVariable("NEXUS_HOME", previousHome); try { Directory.Delete(tmp, true); } catch { } }
+
+    /// Serves an "installer" and its checksums over real HTTP on a free local port.
+    static (MiniHttpServer server, ReleaseInfo release, byte[] payload) Serve(string name, bool honestChecksum)
+    {
+        var payload = System.Security.Cryptography.RandomNumberGenerator.GetBytes(400_000);
+        var sha = honestChecksum ? Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(payload)).ToLowerInvariant() : new string('0', 64);
+        var sums = Encoding.UTF8.GetBytes($"{sha}  {name}\n");
+        var server = new MiniHttpServer(System.Net.IPAddress.Loopback, 0, async (req, stream) =>
+        {
+            if (req.Path.EndsWith(name)) await HttpRequest.Reply(stream, 200, payload, "application/octet-stream");
+            else if (req.Path.EndsWith("SHA256SUMS-windows.txt")) await HttpRequest.Reply(stream, 200, sums, "text/plain");
+            else await HttpRequest.Reply(stream, 404, [], "text/plain");
+        });
+        Assert.True(server.Start());
+        var root = $"http://127.0.0.1:{server.Port}/";
+        return (server, new ReleaseInfo("9.9.9", "Nexus 9.9.9", "- test", root, root + name, name, payload.Length, root + "SHA256SUMS-windows.txt", DateTime.UtcNow), payload);
+    }
+
+    [Fact]
+    public async Task DownloadsAndVerifiesTheInstaller()
+    {
+        var (server, release, payload) = Serve("Nexus-Setup-9.9.9-x64.exe", honestChecksum: true);
+        try
+        {
+            var updater = new Updater(store, "1.0.0");
+            var path = await updater.Download(release);
+            Assert.NotNull(path);
+            Assert.Equal(UpdateStage.Ready, updater.State.Stage);
+            Assert.Equal(payload, File.ReadAllBytes(path!));
+        }
+        finally { server.Stop(); }
+    }
+
+    [Fact]
+    public async Task RejectsAndDeletesATamperedInstaller()
+    {
+        var (server, release, _) = Serve("Nexus-Setup-bad.exe", honestChecksum: false);
+        try
+        {
+            var updater = new Updater(store, "1.0.0");
+            Assert.Null(await updater.Download(release));
+            Assert.Equal(UpdateStage.Failed, updater.State.Stage);
+            Assert.Contains("checksum", updater.State.Message);
+            Assert.False(File.Exists(Path.Combine(Paths.AppSupport, "Updates", "Nexus-Setup-bad.exe")));
+        }
+        finally { server.Stop(); }
+    }
+
+    [Fact]
+    public async Task ReportsAMissingInstallerWithoutCrashing()
+    {
+        var updater = new Updater(store, "1.0.0");
+        var none = new ReleaseInfo("9.9.9", "x", "", "https://example.invalid", null, null, 0, null, DateTime.UtcNow);
+        Assert.Null(await updater.Download(none));
+        Assert.Equal(UpdateStage.Failed, updater.State.Stage);
+        Assert.Contains("no download", updater.State.Message);
+    }
+}
+
 public class F1Tests
 {
     static F1Service Service() => new() { BaseOverride = Path.Combine(AppContext.BaseDirectory, "fixtures", "f1"), Now = () => new DateTime(2026, 9, 26, 12, 30, 0, DateTimeKind.Utc) };
@@ -479,7 +552,11 @@ public class F1Tests
         Assert.Contains("Grand Prix", next!.Name);
         Assert.NotEmpty(next.Sessions);
         Assert.Equal("Race", next.Sessions[^1].name);
-        Assert.Contains("in ", next.Countdown);
+        // recorded data ages, so test the countdown against fixed clocks instead of "now"
+        Assert.Equal("in 2d 3h", next.CountdownAt(next.StartUtc.AddDays(-2).AddHours(-3).AddMinutes(-10)));
+        Assert.Equal("in 5h 30m", next.CountdownAt(next.StartUtc.AddHours(-5).AddMinutes(-30)));
+        Assert.Equal("in 12m", next.CountdownAt(next.StartUtc.AddMinutes(-12)));
+        Assert.Equal("under way", next.CountdownAt(next.StartUtc.AddMinutes(1)));
 
         var drivers = await f1.DriverStandings();
         var teams = await f1.ConstructorStandings();
