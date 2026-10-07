@@ -2,7 +2,7 @@
 # Packages dist/Nexus.app into dist/Nexus-<version>.dmg with a styled drag-to-Applications window (via dmgbuild).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-VERSION=${VERSION:-1.0.0}
+VERSION=${VERSION:-1.1.0}
 APP=dist/Nexus.app
 [[ -d $APP ]] || { echo "Build first: scripts/build-app.sh"; exit 1; }
 DMG=dist/Nexus-$VERSION.dmg

@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 CONFIG=${CONFIG:-release}
-VERSION=${VERSION:-1.0.0}
+VERSION=${VERSION:-1.1.0}
 BUILD_NUMBER=${BUILD_NUMBER:-$(date +%Y%m%d%H%M)}
 INCLUDE_MODEL=${INCLUDE_MODEL:-1}
 APP=dist/Nexus.app

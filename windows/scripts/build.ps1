@@ -1,5 +1,5 @@
 # Builds Nexus for Windows: self-contained app + CLI + offline AI → dist\Nexus, then the installer and a portable zip.
-param([string]$Version = "1.0.0", [switch]$NoInstaller)
+param([string]$Version = "1.1.0", [switch]$NoInstaller)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $dist = Join-Path $root "dist"

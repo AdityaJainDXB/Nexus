@@ -22,6 +22,7 @@ switch (cmd)
 {
     case "serve": return await Serve();
     case "compile": return Compile(string.Join(' ', rest));
+    case "update-check": return await UpdateCheck(rest.FirstOrDefault() ?? "0.0.0");
     case "remote-test": return await RemoteTest(rest.ElementAtOrDefault(0) ?? "127.0.0.1", rest.ElementAtOrDefault(1) ?? "");
     case "status": return await Call("GET", "/v1/status");
     case "rules": return await Call("GET", "/v1/rules");
@@ -68,6 +69,19 @@ static async Task<int> Serve()
     AppDomain.CurrentDomain.ProcessExit += (_, _) => quit.TrySetResult();
     await quit.Task;
     engine.Stop(); api.Stop(); remote.Stop();
+    return 0;
+}
+
+/// Asks GitHub what the newest release is, exactly as the app's updater would for a given installed version.
+static async Task<int> UpdateCheck(string installed)
+{
+    var store = new NexusStore(Path.Combine(Path.GetTempPath(), $"nexusctl-update-{Environment.ProcessId}.sqlite"));
+    var updater = new Updater(store, installed);
+    var r = await updater.Check();
+    if (r == null) { Console.WriteLine(updater.State.Message ?? "no update"); return 0; }
+    Console.WriteLine($"update available: {r.Version} (you have {installed})");
+    Console.WriteLine($"  download : {r.AssetName ?? "none for this platform"} {r.SizeText}");
+    Console.WriteLine($"  checksums: {r.ChecksumsUrl ?? "none"}");
     return 0;
 }
 

@@ -56,7 +56,7 @@ pgrep -f "Helpers/llama/llama-server" >/dev/null && bad "model server stopped wi
 if [[ "${1:-}" != "--no-dmg" ]]; then
   step "5 · DMG"
   run "scripts/make-dmg.sh" ./scripts/make-dmg.sh
-  M=$(hdiutil attach dist/Nexus-${VERSION:-1.0.0}.dmg -readonly -nobrowse -noautoopen 2>/dev/null | awk -F'\t' '/\/Volumes\// {print $NF}')
+  M=$(hdiutil attach dist/Nexus-${VERSION:-1.1.0}.dmg -readonly -nobrowse -noautoopen 2>/dev/null | awk -F'\t' '/\/Volumes\// {print $NF}')
   [[ -d "$M/Nexus.app" && -L "$M/Applications" ]] && ok "DMG mounts with Nexus.app + Applications link" || bad "DMG contents"
   codesign --verify --deep --strict "$M/Nexus.app" 2>/dev/null && ok "app inside DMG is intact" || bad "DMG app signature"
   [[ -n "$M" ]] && hdiutil detach "$M" -quiet

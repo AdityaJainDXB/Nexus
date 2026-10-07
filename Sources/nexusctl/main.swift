@@ -51,6 +51,28 @@ if cmd == "compile" {
     r.warnings.forEach { print("  ⚠︎ \($0)") }
     exit(0)
 }
+if cmd == "update-check" {
+    // Asks GitHub what the newest release is, as the app's updater would for a given installed version.
+    //   nexusctl update-check [installed-version]
+    let installed = args.first ?? "0.0.0"
+    let store = try NexusStore(path: NSTemporaryDirectory() + "nexusctl-update-\(ProcessInfo.processInfo.processIdentifier).sqlite")
+    let updater = Updater(store: store, currentVersion: installed)
+    let sem = DispatchSemaphore(value: 0)
+    Task {
+        let release = await updater.check()
+        if let r = release {
+            print("update available: \(r.version) (you have \(installed))")
+            print("  download : \(r.assetName ?? "none for this platform") \(r.sizeText)")
+            print("  checksums: \(r.checksumsURL ?? "none")")
+            print("  notes    : \(r.highlights.first ?? "—")")
+        } else {
+            print(updater.state.message ?? "no update")
+        }
+        sem.signal()
+    }
+    sem.wait()
+    exit(0)
+}
 if cmd == "ai-test" {
     // Offline check of the bundled local model (no app needed)
     let prompt = args.first ?? "Rewrite as a Nexus command: put my physics homework pdfs into the physics folder"
