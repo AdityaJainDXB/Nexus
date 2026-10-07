@@ -101,6 +101,7 @@ public class AppState : Observable
     public NexusEngine Engine { get; }
     public ApiServer Api { get; }
     public RemoteServer Remote { get; }
+    public Updater Updater { get; }
 
     public ObservableCollection<ReviewRow> Reviews { get; } = [];
     public ObservableCollection<InsightRow> Insights { get; } = [];
@@ -147,6 +148,37 @@ public class AppState : Observable
         Api = new ApiServer(Engine);
         Remote = new RemoteServer(Api, store);
         Api.Remote = Remote;
+        Updater = new Updater(store, typeof(AppState).Assembly.GetName().Version?.ToString(3));
+        Updater.OnState = s => Application.Current?.Dispatcher.BeginInvoke(() => UpdateState = s);
+    }
+
+    UpdateState updateState = new(UpdateStage.Idle);
+    public UpdateState UpdateState
+    {
+        get => updateState;
+        private set
+        {
+            Set(ref updateState, value);
+            Raise(nameof(UpdateBadge));
+            if (value.Stage == UpdateStage.Available && value.Release is { } r && Engine.Store.Kv("update.announced") != r.Version)
+            {
+                Engine.Store.SetKv("update.announced", r.Version);
+                Tray.Shared.Notify("Nexus update available", $"Version {r.Version} is ready to install — open Settings to update.", true);
+            }
+        }
+    }
+    public string UpdateBadge => UpdateState is { Stage: UpdateStage.Available, Release: { } r } ? r.Version : "";
+
+    /// Quiet check a few seconds after launch, then daily.
+    public void StartUpdateChecks()
+    {
+        async void Check() { if (Settings.AutomaticUpdateChecks) await Updater.Check(automatic: true, enabled: true); }
+        var first = new DispatcherTimer { Interval = TimeSpan.FromSeconds(12) };
+        first.Tick += (_, _) => { first.Stop(); Check(); };
+        first.Start();
+        var daily = new DispatcherTimer { Interval = TimeSpan.FromHours(6) };
+        daily.Tick += (_, _) => Check();
+        daily.Start();
     }
 
     public void Start()
@@ -162,6 +194,7 @@ public class AppState : Observable
         RemoteRunning = Remote.IsRunning;
         ReloadAll();
         _ = RefreshLlm();
+        if (!App.Headless) StartUpdateChecks();
     }
 
     public async Task RefreshLlm() => LlmName = await Engine.Llm.ProviderName();

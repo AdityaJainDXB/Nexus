@@ -179,6 +179,10 @@ public struct NexusSettings: Codable, Equatable {
     public var digestHour = 9
     public var scriptSandbox = true
     public var showDockIcon = false
+    public var automaticUpdateChecks = true    // ask GitHub about new versions; nothing is installed without your OK
+    public var f1Enabled = true                // Formula 1 module (live timing, standings)
+    public var f1Notifications = true          // 15 minutes before a session, and the result afterwards
+    public var f1Favourite = ""                // driver code or name to call out, e.g. "NOR"
     public var autoRemoveDuplicates = true     // trash new downloads whose exact content already exists in your folders
     public var voiceHotkey: VoiceHotkey = .optionShiftSpace
     public var voiceAutoSubmit = true          // send after a short pause in speech
@@ -230,6 +234,10 @@ public struct NexusSettings: Codable, Equatable {
         digestHour = v(.digestHour, d.digestHour)
         scriptSandbox = v(.scriptSandbox, d.scriptSandbox)
         showDockIcon = v(.showDockIcon, d.showDockIcon)
+        automaticUpdateChecks = v(.automaticUpdateChecks, d.automaticUpdateChecks)
+        f1Enabled = v(.f1Enabled, d.f1Enabled)
+        f1Notifications = v(.f1Notifications, d.f1Notifications)
+        f1Favourite = v(.f1Favourite, d.f1Favourite)
         autoRemoveDuplicates = v(.autoRemoveDuplicates, d.autoRemoveDuplicates)
         voiceHotkey = v(.voiceHotkey, d.voiceHotkey)
         voiceAutoSubmit = v(.voiceAutoSubmit, d.voiceAutoSubmit)

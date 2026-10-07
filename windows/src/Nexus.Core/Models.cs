@@ -430,6 +430,8 @@ public class NexusSettings
     public string SlackWebhook { get; set; } = "";
     public bool AllowScripts { get; set; }
 
+    public bool AutomaticUpdateChecks { get; set; } = true;
+
     // F1 module
     public bool F1Enabled { get; set; } = true;
     public bool F1Notifications { get; set; } = true;

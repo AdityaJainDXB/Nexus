@@ -4,7 +4,7 @@ import UserNotifications
 import ServiceManagement
 
 enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
-    case today, review, files, projects, rules, tasks, insights, activity, connectors, access, developer
+    case today, review, files, projects, rules, tasks, insights, activity, f1, connectors, access, developer
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -18,6 +18,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .activity: return "Activity"
         case .connectors: return "Connectors"
         case .access: return "System Access"
+        case .f1: return "Formula 1"
         case .developer: return "Developer"
         }
     }
@@ -33,6 +34,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .activity: return "clock.arrow.circlepath"
         case .connectors: return "puzzlepiece.extension"
         case .access: return "lock.shield"
+        case .f1: return "flag.checkered"
         case .developer: return "chevron.left.forwardslash.chevron.right"
         }
     }
@@ -45,6 +47,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         if n.contains("task") || n.contains("schedule") { return .tasks }
         if n.contains("activity") { return .activity }
         if n.contains("connector") { return .connectors }
+        if n.contains("f1") || n.contains("formula") { return .f1 }
         if n.contains("file") { return .files }
         if n.contains("today") { return .today }
         if n.contains("access") || n.contains("permission") { return .access }
@@ -60,6 +63,7 @@ final class AppState: ObservableObject {
     let engine: NexusEngine
     let api: APIServer
     let remote: RemoteServer
+    let updater: Updater
     @Published var remoteDevices: [RemoteServer.Device] = []
     @Published var remoteRunning = false
 
@@ -84,6 +88,8 @@ final class AppState: ObservableObject {
     @Published var selectedProjectId: String?
     @Published var toast: String?
     @Published var showShortcuts = false
+    @Published var updateState = UpdateState()
+    var updateAvailable: ReleaseInfo? { updateState.stage == .available || updateState.stage == .ready || updateState.stage == .downloading ? updateState.release : nil }
 
     private var pending = Set<String>()
     private var flushScheduled = false
@@ -99,6 +105,7 @@ final class AppState: ObservableObject {
         engine = NexusEngine(store: store)
         api = APIServer(engine: engine)
         remote = RemoteServer(api: api, store: store)
+        updater = Updater(store: store)
         api.remote = remote
         settings = engine.settings
     }
@@ -125,7 +132,35 @@ final class AppState: ObservableObject {
         requestNotificationPermission()
         reloadAll()
         showOnboarding = !settings.onboardingComplete
+        updater.onState = { s in Task { @MainActor in AppState.shared.applyUpdateState(s) } }
+        startUpdateChecks()
         Task { llmName = await engine.llm.providerName() }
+    }
+
+    func applyUpdateState(_ s: UpdateState) {
+        updateState = s
+        if s.stage == .available, let r = s.release, engine.store.kv("update.announced") != r.version {
+            engine.store.setKV("update.announced", r.version)
+            deliverNotification(title: "Nexus update available", body: "Version \(r.version) is ready to install — open Settings → Updates.", important: true)
+        }
+    }
+
+    /// A quiet check shortly after launch, then every six hours. Off entirely when the user says so.
+    func startUpdateChecks() {
+        guard !ProcessInfo.processInfo.arguments.contains("--no-update-check") else { return }
+        func run() {
+            guard settings.automaticUpdateChecks else { return }
+            Task { await updater.check(automatic: true, enabled: true) }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12, execute: run)
+        Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in Task { @MainActor in run() } }
+    }
+
+    func installUpdate() {
+        guard let path = updateState.downloadedPath else { return }
+        if updater.install(path) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { NSApp.terminate(nil) }
+        }
     }
 
     /// Status is debounced so bursts of tiny background work don't make the menu bar flicker:

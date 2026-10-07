@@ -261,3 +261,145 @@ final class ExecutorIntegrationTests: XCTestCase {
         XCTAssertFalse(g.allow())
     }
 }
+
+// MARK: - Formula 1 module
+
+final class F1Tests: XCTestCase {
+    private func service() -> F1Service {
+        let s = F1Service()
+        s.fixtures = Bundle.module.url(forResource: "fixtures/f1", withExtension: nil)
+        return s
+    }
+
+    func testReadsLiveTiming() async throws {
+        let f1 = service()
+        let latest = await f1.latestSession()
+        let session = try XCTUnwrap(latest)
+        XCTAssertEqual(session.type, "Race")
+        XCTAssertEqual(session.circuit, "Baku")
+
+        let liveData = await f1.live()
+        let live = try XCTUnwrap(liveData)
+        XCTAssertFalse(live.rows.isEmpty)
+        XCTAssertEqual(live.rows.map(\.position), live.rows.map(\.position).sorted())
+        XCTAssertEqual(live.rows[0].gap, "LEADER")
+        XCTAssertFalse(live.rows[0].driver.team.isEmpty)
+        XCTAssertTrue(live.rows.contains { ["SOFT", "MEDIUM", "HARD"].contains($0.compound ?? "") })
+        XCTAssertNotNil(live.weather)
+        XCTAssertFalse(live.messages.isEmpty)
+        XCTAssertTrue(F1Service.liveText(live, favourite: live.rows[0].driver.acronym).contains("Baku"))
+    }
+
+    func testFormatsLapTimes() {
+        XCTAssertEqual(F1Row.format(108.488), "1:48.488")
+        XCTAssertEqual(F1Row.format(58.9), "58.900")
+    }
+
+    func testReadsScheduleAndStandings() async throws {
+        let f1 = service()
+        let upcoming = await f1.nextRace()
+        let next = try XCTUnwrap(upcoming)
+        XCTAssertTrue(next.name.contains("Grand Prix"))
+        XCTAssertEqual(next.sessions.last?.name, "Race")
+
+        let drivers = await f1.driverStandings()
+        let teams = await f1.constructorStandings()
+        XCTAssertEqual(drivers.first?.position, 1)
+        XCTAssertGreaterThanOrEqual(drivers[0].points, drivers[1].points)
+        XCTAssertTrue(F1Service.standingsText(drivers, teams).contains(drivers[0].code))
+
+        let (race, order) = await f1.lastResults()
+        XCTAssertFalse(order.isEmpty)
+        XCTAssertTrue(F1Service.resultsText(race, order).contains("P1"))
+    }
+
+    func testParsesF1Commands() {
+        let parser = CommandParser(compiler: NLRuleCompiler())
+        func kind(_ text: String) -> String? {
+            if case .f1(let k)? = parser.parse(text).first?.intent { return k }
+            return nil
+        }
+        XCTAssertEqual(kind("f1"), "auto")
+        XCTAssertEqual(kind("f1 live timing"), "auto")
+        XCTAssertEqual(kind("f1 standings"), "standings")
+        XCTAssertEqual(kind("next race"), "next")
+        XCTAssertEqual(kind("when is the next grand prix"), "next")
+        XCTAssertEqual(kind("who won the last f1 race"), "results")
+        XCTAssertEqual(kind("who is leading the race"), "auto")
+        XCTAssertNil(kind("organize Downloads"))
+        XCTAssertNil(kind("find my f1 telemetry notes"))
+    }
+}
+
+// MARK: - Updater
+
+final class UpdaterTests: XCTestCase {
+    private var tmp: URL!
+    private var store: NexusStore!
+
+    override func setUp() {
+        tmp = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("nexus-upd-\(UUID().uuidString.prefix(6))")
+        try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        setenv("NEXUS_HOME", tmp.appendingPathComponent("support").path, 1)
+        store = try! NexusStore(path: tmp.appendingPathComponent("u.sqlite").path)
+    }
+    override func tearDown() { try? FileManager.default.removeItem(at: tmp) }
+
+    private func updater(_ current: String) -> Updater {
+        let u = Updater(store: store, currentVersion: current)
+        u.apiOverride = Bundle.module.url(forResource: "fixtures/release-latest", withExtension: "json")
+        return u
+    }
+
+    func testComparesVersions() {
+        XCTAssertEqual(Updater.compare("1.0.1", "1.0.0"), 1)
+        XCTAssertEqual(Updater.compare("1.2.0", "1.10.0"), -1)
+        XCTAssertEqual(Updater.compare("1.2.10", "1.2.9"), 1)
+        XCTAssertEqual(Updater.compare("1.0.0", "1.0.0"), 0)
+        XCTAssertEqual(Updater.compare("v1.1.0", "1.1"), 0)
+        XCTAssertEqual(Updater.compare("1.0.0", "1.0.0-beta"), 1)
+    }
+
+    func testOffersNewerReleaseWithTheMacAsset() async throws {
+        let u = updater("1.0.0")
+        let found = await u.check()
+        let release = try XCTUnwrap(found)
+        XCTAssertEqual(release.version, "1.2.0")
+        XCTAssertEqual(release.assetName, "Nexus-1.2.0.dmg")        // the .dmg, not the Windows installer
+        XCTAssertEqual(u.state.stage, .available)
+        XCTAssertNotNil(u.lastChecked)
+        XCTAssertFalse(release.highlights.isEmpty)
+    }
+
+    func testUpToDateAndSkipping() async throws {
+        let latest = await updater("1.2.0").check()
+        XCTAssertNil(latest)
+        let u = updater("1.0.0")
+        u.skip("1.2.0")
+        let auto = await u.check(automatic: true)
+        XCTAssertNil(auto)                                 // not offered automatically…
+        let manual = await u.check()
+        XCTAssertNotNil(manual)                            // …but still available on demand
+        u.unskip()
+        let again = await u.check(automatic: true)
+        XCTAssertNotNil(again)
+    }
+
+    func testChecksOffContactNothing() async {
+        let u = updater("1.0.0")
+        u.apiOverride = URL(fileURLWithPath: "/does/not/exist.json")
+        let result = await u.check(automatic: true, enabled: false)
+        XCTAssertNil(result)
+        XCTAssertEqual(u.state.stage, .idle)
+        XCTAssertNil(u.lastChecked)
+    }
+
+    func testFailedCheckIsReported() async {
+        let u = updater("1.0.0")
+        u.apiOverride = URL(fileURLWithPath: "/does/not/exist.json")
+        let result = await u.check()
+        XCTAssertNil(result)
+        XCTAssertEqual(u.state.stage, .failed)
+        XCTAssertTrue(u.state.message?.contains("Couldn't check") ?? false)
+    }
+}

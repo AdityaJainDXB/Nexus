@@ -40,6 +40,7 @@ public indirect enum CommandIntent: Hashable {
     case smartFile(FileQuery)               // "file this" — rules first, then learned destinations
     case cleanDuplicates                    // trash extra copies, keep the organized one
     case cleanSimilarScreenshots            // keep newest of each near-identical group
+    case f1(String)                         // Formula 1: live timing, standings, schedule
     case unknown(String)
 
     public var label: String {
@@ -68,6 +69,7 @@ public indirect enum CommandIntent: Hashable {
         case .smartFile: return "File it"
         case .cleanDuplicates: return "Clean up duplicates"
         case .cleanSimilarScreenshots: return "Clean up similar screenshots"
+        case .f1: return "Formula 1"
         case .unknown: return "Ask"
         }
     }
@@ -96,13 +98,14 @@ public indirect enum CommandIntent: Hashable {
         case .smartFile: return "tray.and.arrow.down"
         case .cleanDuplicates: return "trash.square"
         case .cleanSimilarScreenshots: return "camera.on.rectangle"
+        case .f1: return "flag.checkered"
         case .unknown: return "questionmark.bubble"
         }
     }
     /// Whether execution changes anything (needs the one-confirm step).
     public var isMutating: Bool {
         switch self {
-        case .find, .summarizeFolder, .summarizeQuery, .summarizeProject, .navigate, .unknown, .ask, .briefing: return false
+        case .find, .summarizeFolder, .summarizeQuery, .summarizeProject, .navigate, .unknown, .ask, .briefing, .f1: return false
         case .fileActions(_, let a): return a.contains { $0.kind != .summarize && $0.kind != .revealInFinder && $0.kind != .openFile }
         default: return true
         }
@@ -192,6 +195,7 @@ public final class CommandParser {
         case "learn my folders", "learn folders", "learn my folder structure", "relearn taxonomy": return .learnTaxonomy
         default: break
         }
+        if let f1 = Self.parseF1(l) { return f1 }
         if l.range(of: #"^(?:brief me|briefing|daily briefing|morning briefing|good morning|what'?s (?:up|new|on my plate)|catch me up|what did i miss)\b"#, options: .regularExpression) != nil {
             return .briefing
         }
@@ -284,6 +288,20 @@ public final class CommandParser {
         let q = query(s)
         if !q.conditions.isEmpty && q.conditions.count >= 1 && s.split(separator: " ").count <= 8 { return .find(q) }
         return .unknown(s)
+    }
+
+    /// Formula 1: "f1", "f1 live", "f1 standings", "next race", "who won the last race".
+    public static func parseF1(_ lower: String) -> CommandIntent? {
+        let l = lower.trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "?."))
+        func has(_ pattern: String) -> Bool { l.range(of: pattern, options: .regularExpression) != nil }
+        let isF1 = has(#"\b(f1|formula ?1|grand prix|gp)\b"#)
+        if has(#"^(?:when(?:'s| is)? )?(?:the )?next (?:f1 )?(?:race|grand prix|gp|session)\b"#) || (isF1 && has(#"\bnext\b.*\b(race|session|gp|grand prix)\b"#)) { return .f1("next") }
+        if isF1 && has(#"\b(standings?|championship|points)\b"#) { return .f1("standings") }
+        if isF1 && has(#"\b(results?|who won|podium|finished)\b"#) { return .f1("results") }
+        if has(#"^(?:f1|formula ?1)(?: (?:live|timing|now|live timing|session|race))?$"#) { return .f1("auto") }
+        if isF1 && has(#"\b(live|timing|who(?:'s| is) (?:leading|winning|in the lead)|position|gap)\b"#) { return .f1("auto") }
+        if has(#"^who(?:'s| is) (?:leading|winning) the (?:race|grand prix|f1)"#) { return .f1("auto") }
+        return nil
     }
 
     func fileActions(subject: String, body: String) -> CommandIntent {

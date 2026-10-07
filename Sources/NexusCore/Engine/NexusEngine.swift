@@ -53,6 +53,7 @@ public final class NexusEngine: ActionHost {
     public let taxonomy: TaxonomyLearner
     public let projectMatcher: ProjectMatcher
     public let llm: LLMRouter
+    public let f1 = F1Service()
     public let connectors: Connectors
     public let executor: ActionExecutor
     public let queue: TaskQueue
@@ -155,6 +156,7 @@ public final class NexusEngine: ActionHost {
                 }
             }),
             ("digest", 60, { [weak self] in self?.flushNotificationDigest(); self?.markAlive() }),
+            ("f1", 300, { [weak self] in Task { await self?.checkF1() } }),
             ("projectLinks", 600, { [weak self] in self?.flushProjectLinks() }),
         ]
         scheduler.start()
@@ -982,6 +984,8 @@ public final class NexusEngine: ActionHost {
                 ps.note = "Searching your files for: \(question)"
             case .briefing:
                 ps.note = "Today’s briefing"
+            case .f1(let kind):
+                ps.note = kind == "standings" ? "F1 championship standings" : kind == "results" ? "Last F1 race result" : kind == "next" ? "Next F1 session" : "Formula 1 live timing"
             case .unknown(let text):
                 ps.note = "Not sure how to do “\(text)”. Try: organize Downloads · find invoices from last month · create rule: …"
             default:
@@ -1127,6 +1131,9 @@ public final class NexusEngine: ActionHost {
                 previous = sources
             case .briefing:
                 messages.append(await briefing())
+            case .f1(let kind):
+                messages.append(settings.f1Enabled ? await f1.summary(kind, favourite: settings.f1Favourite) : "The Formula 1 module is off — turn it on in Settings.")
+                if kind == "auto" { result.navigate = "f1" }
             case .unknown(let text):
                 if let p = await llm.provider() {
                     let answer = (try? await p.complete(system: "You are Nexus, a concise macOS file assistant. Answer briefly. If the user wants an action, suggest a command from: \(CommandParser.grammarHelp)", prompt: text)) ?? ""
@@ -1430,6 +1437,28 @@ public final class NexusEngine: ActionHost {
             for folder in Set(self.settings.watchedFoldersExpanded + self.settings.libraryRootsExpanded) {
                 let s = SystemMonitor.folderStats(folder)
                 self.store.saveSnapshot(folder: folder, size: s.size, count: s.count)
+            }
+        }
+    }
+
+    /// Reminds you 15 minutes before a session and reports the result once the flag falls.
+    func checkF1() async {
+        guard settings.f1Enabled, settings.f1Notifications else { return }
+        if let race = await f1.nextRace() {
+            for session in race.sessions {
+                let minutes = session.start.timeIntervalSinceNow / 60
+                let key = "f1.notified.\(race.round).\(session.name)"
+                if minutes > 0, minutes <= 15, store.kv(key) == nil {
+                    store.setKV(key, "1")
+                    notify(title: "F1 · \(session.name) starts in \(max(1, Int(minutes))) min", body: "\(race.name) — \(race.circuit)", important: true)
+                }
+            }
+        }
+        if let live = await f1.live(), !live.rows.isEmpty, !live.running, Date().timeIntervalSince(live.session.end) < 3 * 3600 {
+            let key = "f1.result.\(live.session.sessionKey)"
+            if store.kv(key) == nil {
+                store.setKV(key, "1")
+                notify(title: "F1 · \(live.session.title) finished", body: live.rows.prefix(3).map { "P\($0.position) \($0.driver.acronym)" }.joined(separator: " · "), important: true)
             }
         }
     }

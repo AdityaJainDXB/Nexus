@@ -11,6 +11,7 @@ struct SettingsView: View {
             IntelligenceSettings().tabItem { Label("Intelligence", systemImage: "sparkles") }
             CategorySettings().tabItem { Label("Taxonomy", systemImage: "square.grid.3x3") }
             PrivacySettings().tabItem { Label("Privacy", systemImage: "lock.shield") }
+            UpdateSettings().tabItem { Label("Updates", systemImage: "arrow.down.circle") }
         }
         .padding(16)
     }
@@ -280,5 +281,139 @@ struct LocalModelSection: View {
                 .font(.caption).foregroundStyle(.secondary)
         }
         .onAppear { models = LocalModelServer.availableModels() }
+    }
+}
+
+
+/// Updates — an opt-out check against GitHub Releases, with Update / Not now / Skip this version.
+struct UpdateSettings: View {
+    @EnvironmentObject var app: AppState
+
+    var body: some View {
+        Form {
+            Section("Nexus \(app.updater.currentVersion)") {
+                Toggle("Check for updates automatically", isOn: SettingsBinding.make(app, \.automaticUpdateChecks))
+                Text(app.settings.automaticUpdateChecks
+                     ? "Nexus asks GitHub shortly after launch and every six hours. Nothing is downloaded or installed without your OK."
+                     : "Automatic checks are off — Nexus will not contact GitHub. You can still check by hand below.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if let release = app.updateState.release, app.updateState.stage != .upToDate {
+                Section("Update available") { UpdateCard(release: release) }
+            } else {
+                Section { UpdateStatusRow() }
+            }
+            Section("Formula 1 module") { F1SettingsSection() }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+private struct UpdateCard: View {
+    @EnvironmentObject var app: AppState
+    let release: ReleaseInfo
+    @State private var busy = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Nexus \(release.version)").font(.system(size: 15, weight: .semibold))
+            Text(subtitle).font(.caption).foregroundStyle(.secondary)
+            ForEach(release.highlights, id: \.self) { line in
+                Text(line).font(.caption).foregroundStyle(.secondary)
+            }
+            actions
+            if app.updateState.stage == .failed, let message = app.updateState.message {
+                Text(message).font(.caption).foregroundStyle(Theme.danger)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var subtitle: String {
+        let size = release.sizeText.isEmpty ? "" : " · \(release.sizeText)"
+        return "You have \(app.updater.currentVersion) · published \(release.publishedAt.formatted(date: .abbreviated, time: .omitted))\(size)"
+    }
+
+    @ViewBuilder private var actions: some View {
+        switch app.updateState.stage {
+        case .downloading, .verifying:
+            ProgressView(value: app.updateState.progress)
+            Text(app.updateState.stage == .verifying ? "Checking the download…" : (app.updateState.message ?? "Downloading…"))
+                .font(.caption).foregroundStyle(.secondary)
+        case .installing:
+            Text("Installing — Nexus will restart.").font(.caption).foregroundStyle(.secondary)
+        default:
+            HStack(spacing: 8) {
+                if app.updateState.stage == .ready {
+                    Button("Install and restart") { app.installUpdate() }.buttonStyle(PrimaryButtonStyle())
+                } else {
+                    Button("Update now") { download() }.buttonStyle(PrimaryButtonStyle()).disabled(busy)
+                }
+                Button("Not now") { app.selection = .today }
+                Button("Skip this version") { skip() }
+                Link("Release notes", destination: URL(string: release.url) ?? URL(string: "https://github.com")!)
+            }
+        }
+    }
+
+    private func download() {
+        busy = true
+        Task {
+            await app.updater.download(release)
+            busy = false
+        }
+    }
+
+    private func skip() {
+        app.updater.skip(release.version)
+        app.updateState = app.updater.state
+    }
+}
+
+private struct UpdateStatusRow: View {
+    @EnvironmentObject var app: AppState
+
+    var body: some View {
+        HStack {
+            Text(status).font(.caption).foregroundStyle(.secondary)
+            Spacer()
+            Button(app.updateState.stage == .checking ? "Checking…" : "Check now") { check() }
+                .disabled(app.updateState.stage == .checking)
+        }
+        if let skipped = app.updater.skippedVersion {
+            Button("Stop skipping \(skipped)") {
+                app.updater.unskip()
+                app.updateState = app.updater.state
+            }
+        }
+    }
+
+    private var status: String {
+        switch app.updateState.stage {
+        case .failed: return app.updateState.message ?? "Couldn't check for updates"
+        case .upToDate: return "Nexus \(app.updater.currentVersion) is up to date"
+        default:
+            guard let at = app.updater.lastChecked else { return "Not checked yet" }
+            return "Last checked \(at.formatted(date: .abbreviated, time: .shortened))"
+        }
+    }
+
+    private func check() {
+        Task {
+            _ = await app.updater.check()
+            app.updateState = app.updater.state
+        }
+    }
+}
+
+private struct F1SettingsSection: View {
+    @EnvironmentObject var app: AppState
+
+    var body: some View {
+        Toggle("Show the Formula 1 page", isOn: SettingsBinding.make(app, \.f1Enabled))
+        Toggle("Tell me 15 minutes before a session, and the result after", isOn: SettingsBinding.make(app, \.f1Notifications))
+        TextField("Favourite driver (e.g. NOR)", text: SettingsBinding.make(app, \.f1Favourite))
+        Text("Live timing from the public OpenF1 feed; schedule and standings from the Jolpica/Ergast mirror. Unofficial, no account needed.")
+            .font(.caption).foregroundStyle(.secondary)
     }
 }

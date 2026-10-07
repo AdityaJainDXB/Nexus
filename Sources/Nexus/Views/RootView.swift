@@ -47,6 +47,7 @@ struct RootView: View {
         case .activity: ActivityView()
         case .connectors: ConnectorsView()
         case .access: SystemAccessView()
+        case .f1: F1View()
         case .developer: DeveloperView()
         }
     }

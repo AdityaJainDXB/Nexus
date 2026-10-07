@@ -12,10 +12,19 @@ public partial class SettingsPage : UserControl
     AppState S => AppState.Shared;
     NexusSettings Cfg => S.Settings;
 
+    Border? updateCard;
+
     public SettingsPage()
     {
         InitializeComponent();
         Build();
+        S.PropertyChanged += OnState;
+        Unloaded += (_, _) => S.PropertyChanged -= OnState;
+    }
+
+    void OnState(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppState.UpdateState)) RenderUpdates();
     }
 
     void Save() => S.SaveSettings(Cfg);
@@ -64,6 +73,107 @@ public partial class SettingsPage : UserControl
         P(card).Children.Add(row);
     }
 
+    /// The update card: switch, state, and Update / Not now / Skip this version.
+    void RenderUpdates()
+    {
+        if (updateCard == null) return;
+        var box = P(updateCard);
+        box.Children.Clear();
+        var state = S.UpdateState;
+
+        var auto = new CheckBox { Style = (Style)FindResource("Switch"), Content = "Check for updates automatically", IsChecked = Cfg.AutomaticUpdateChecks, Margin = new Thickness(0, 2, 0, 8) };
+        auto.Checked += (_, _) => { Cfg.AutomaticUpdateChecks = true; Save(); RenderUpdates(); };
+        auto.Unchecked += (_, _) => { Cfg.AutomaticUpdateChecks = false; Save(); RenderUpdates(); };
+        box.Children.Add(auto);
+        box.Children.Add(new TextBlock
+        {
+            Text = Cfg.AutomaticUpdateChecks
+                ? "Nexus checks GitHub a few seconds after launch and every 6 hours. Nothing is ever installed without your OK."
+                : "Automatic checks are off — Nexus will not contact GitHub. You can still check by hand below.",
+            Style = (Style)FindResource("Muted"), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.None, Margin = new Thickness(0, 0, 0, 10),
+        });
+
+        if (state.Release is { } r && state.Stage is UpdateStage.Available or UpdateStage.Downloading or UpdateStage.Verifying or UpdateStage.Ready or UpdateStage.Installing)
+        {
+            var panel = new StackPanel();
+            panel.Children.Add(new TextBlock { Text = $"Nexus {r.Version} is available", FontWeight = FontWeights.SemiBold, FontSize = 15 });
+            panel.Children.Add(new TextBlock
+            {
+                Text = $"You have {S.Updater.CurrentVersion} · published {r.PublishedAt.ToLocalTime():d MMM yyyy}{(r.SizeText.Length > 0 ? " · " + r.SizeText : "")}",
+                Style = (Style)FindResource("Muted"), Margin = new Thickness(0, 2, 0, 8),
+            });
+            var notes = r.Notes.Split('\n').Where(l => l.TrimStart().StartsWith('-') || l.TrimStart().StartsWith('*')).Take(5).Select(l => "• " + l.TrimStart('-', '*', ' ')).ToList();
+            if (notes.Count > 0)
+                panel.Children.Add(new TextBlock { Text = string.Join("\n", notes), Style = (Style)FindResource("Muted"), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.None, Margin = new Thickness(0, 0, 0, 10) });
+
+            if (state.Stage is UpdateStage.Downloading or UpdateStage.Verifying)
+            {
+                panel.Children.Add(new ProgressBar { Height = 6, Value = state.Progress * 100, IsIndeterminate = state.Stage == UpdateStage.Verifying, Margin = new Thickness(0, 0, 0, 6) });
+                panel.Children.Add(new TextBlock { Text = state.Stage == UpdateStage.Verifying ? "Checking the download…" : state.Message ?? "Downloading…", Style = (Style)FindResource("Muted") });
+            }
+            else
+            {
+                var buttons = new WrapPanel();
+                if (state.Stage is UpdateStage.Ready)
+                {
+                    var install = new Button { Content = "Install and restart", Style = (Style)FindResource("Primary"), Margin = new Thickness(0, 0, 8, 0) };
+                    install.Click += (_, _) =>
+                    {
+                        if (MessageBox.Show(Window.GetWindow(this)!, $"Install Nexus {r.Version} now? Nexus will close, update and reopen.", "Update Nexus", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
+                        if (S.Updater.Install(state.InstallerPath!)) Application.Current.Shutdown();
+                    };
+                    buttons.Children.Add(install);
+                }
+                else if (state.Stage != UpdateStage.Installing)
+                {
+                    var download = new Button { Content = "Update now", Style = (Style)FindResource("Primary"), Margin = new Thickness(0, 0, 8, 0) };
+                    download.Click += async (_, _) => await S.Updater.Download(r);
+                    buttons.Children.Add(download);
+                }
+                var later = new Button { Content = "Not now", Margin = new Thickness(0, 0, 8, 0) };
+                later.Click += (_, _) => { S.ShowToast("Reminder set — Nexus will mention it again later."); S.GoTo("today"); };
+                buttons.Children.Add(later);
+                var skip = new Button { Content = "Skip this version", Style = (Style)FindResource("Ghost") };
+                skip.Click += (_, _) => { S.Updater.Skip(r.Version); S.ShowToast($"Skipping {r.Version} — you'll hear about the next one."); RenderUpdates(); };
+                buttons.Children.Add(skip);
+                var notesLink = new Button { Content = "Release notes", Style = (Style)FindResource("Ghost") };
+                notesLink.Click += (_, _) => Platform.Current.Open(r.Url);
+                buttons.Children.Add(notesLink);
+                panel.Children.Add(buttons);
+            }
+            var card = new Border { Style = (Style)FindResource("Card"), Child = panel, Margin = new Thickness(0, 0, 0, 10) };
+            card.SetResourceReference(Border.BorderBrushProperty, "Accent");
+            box.Children.Add(card);
+        }
+        else
+        {
+            var line = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
+            var check = new Button { Content = state.Stage == UpdateStage.Checking ? "Checking…" : "Check now", IsEnabled = state.Stage != UpdateStage.Checking };
+            check.Click += async (_, _) =>
+            {
+                var found = await S.Updater.Check();
+                if (found == null && S.UpdateState.Stage == UpdateStage.UpToDate) S.ShowToast($"Nexus {S.Updater.CurrentVersion} is the latest version.");
+                RenderUpdates();
+            };
+            DockPanel.SetDock(check, Dock.Right);
+            line.Children.Add(check);
+            var text = state.Stage switch
+            {
+                UpdateStage.Failed => state.Message ?? "Couldn't check for updates",
+                UpdateStage.UpToDate => $"Nexus {S.Updater.CurrentVersion} is up to date",
+                _ => S.Updater.LastChecked is { } t ? $"Last checked {t.ToLocalTime():d MMM, HH:mm}" : "Not checked yet",
+            };
+            line.Children.Add(new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center, Style = (Style)FindResource("Muted") });
+            box.Children.Add(line);
+            if (S.Updater.SkippedVersion is { Length: > 0 } skipped)
+            {
+                var un = new Button { Content = $"Stop skipping {skipped}", Style = (Style)FindResource("Ghost"), HorizontalAlignment = HorizontalAlignment.Left };
+                un.Click += (_, _) => { S.Updater.Unskip(); S.ShowToast($"{skipped} will be offered again."); RenderUpdates(); };
+                box.Children.Add(un);
+            }
+        }
+    }
+
     void Folders(Border card, string label, List<string> list)
     {
         var box = new StackPanel();
@@ -95,6 +205,9 @@ public partial class SettingsPage : UserControl
 
     void Build()
     {
+        updateCard = Card("Updates", $"Nexus {S.Updater.CurrentVersion}. New versions are published on GitHub; Nexus can tell you when one appears and install it for you.");
+        RenderUpdates();
+
         var folders = Card("Folders", "Watched folders are tidied automatically. Library folders are where Nexus learns your structure and files things.");
         Folders(folders, "Watch for new files", Cfg.WatchedFolders);
         Folders(folders, "Your library (filing destinations)", Cfg.LibraryRoots);

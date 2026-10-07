@@ -16,6 +16,6 @@ let package = Package(
         ),
         .executableTarget(name: "Nexus", dependencies: ["NexusCore"]),
         .executableTarget(name: "nexusctl", dependencies: ["NexusCore"]),
-        .testTarget(name: "NexusCoreTests", dependencies: ["NexusCore"]),
+        .testTarget(name: "NexusCoreTests", dependencies: ["NexusCore"], resources: [.copy("fixtures")]),
     ]
 )

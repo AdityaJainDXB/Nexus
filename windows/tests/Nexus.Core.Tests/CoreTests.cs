@@ -354,6 +354,82 @@ public class EngineTests : IDisposable
     }
 }
 
+public class UpdaterTests : IDisposable
+{
+    readonly string tmp = Path.Combine(AppContext.BaseDirectory, "upd-" + Guid.NewGuid().ToString("N")[..8]);
+    readonly NexusStore store;
+
+    public UpdaterTests()
+    {
+        Directory.CreateDirectory(tmp);
+        store = new NexusStore(Path.Combine(tmp, "u.sqlite"));
+    }
+    public void Dispose() { store.Dispose(); try { Directory.Delete(tmp, true); } catch { } }
+
+    Updater Make(string current) => new(store, current) { ApiOverride = Path.Combine(AppContext.BaseDirectory, "fixtures", "release-latest.json") };
+
+    [Theory]
+    [InlineData("1.0.1", "1.0.0", 1)]
+    [InlineData("1.2.0", "1.10.0", -1)]
+    [InlineData("1.2.10", "1.2.9", 1)]
+    [InlineData("1.0.0", "1.0.0", 0)]
+    [InlineData("v1.1.0", "1.1", 0)]
+    [InlineData("1.0.0", "1.0.0-beta", 1)]
+    public void ComparesVersions(string a, string b, int expected) => Assert.Equal(expected, Math.Sign(Updater.Compare(a, b)));
+
+    [Fact]
+    public async Task OffersNewerReleaseWithTheRightAsset()
+    {
+        var u = Make("1.0.0");
+        var release = await u.Check();
+        Assert.NotNull(release);
+        Assert.Equal("1.2.0", release!.Version);
+        Assert.Equal("Nexus-Setup-1.2.0-x64.exe", release.AssetName);          // the Windows installer, not the .dmg
+        Assert.EndsWith("SHA256SUMS-windows.txt", release.ChecksumsUrl);
+        Assert.Equal(UpdateStage.Available, u.State.Stage);
+        Assert.NotNull(u.LastChecked);
+    }
+
+    [Fact]
+    public async Task SaysUpToDateOnTheLatestVersion()
+    {
+        var u = Make("1.2.0");
+        Assert.Null(await u.Check());
+        Assert.Equal(UpdateStage.UpToDate, u.State.Stage);
+    }
+
+    [Fact]
+    public async Task SkippedVersionIsNotOfferedAutomaticallyButStillOnDemand()
+    {
+        var u = Make("1.0.0");
+        u.Skip("1.2.0");
+        Assert.Null(await u.Check(automatic: true));
+        Assert.NotNull(await u.Check());                                        // asking by hand still offers it
+        u.Unskip();
+        Assert.NotNull(await u.Check(automatic: true, enabled: true));
+    }
+
+    [Fact]
+    public async Task TurningChecksOffContactsNothing()
+    {
+        var u = Make("1.0.0");
+        u.ApiOverride = Path.Combine(AppContext.BaseDirectory, "does-not-exist.json");
+        Assert.Null(await u.Check(automatic: true, enabled: false));
+        Assert.Equal(UpdateStage.Idle, u.State.Stage);
+        Assert.Null(u.LastChecked);
+    }
+
+    [Fact]
+    public async Task ReportsAFailedCheckWithoutCrashing()
+    {
+        var u = Make("1.0.0");
+        u.ApiOverride = Path.Combine(AppContext.BaseDirectory, "missing.json");
+        Assert.Null(await u.Check());
+        Assert.Equal(UpdateStage.Failed, u.State.Stage);
+        Assert.Contains("Couldn't check", u.State.Message);
+    }
+}
+
 public class F1Tests
 {
     static F1Service Service() => new() { BaseOverride = Path.Combine(AppContext.BaseDirectory, "fixtures", "f1"), Now = () => new DateTime(2026, 9, 26, 12, 30, 0, DateTimeKind.Utc) };
