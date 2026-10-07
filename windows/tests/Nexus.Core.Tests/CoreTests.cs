@@ -320,6 +320,33 @@ public class EngineTests : IDisposable
         Assert.Equal("2 matches", Text.Plural(2, "match"));
     }
 
+    /// Battery and Energy Saver slow background work down; they must never stop it (otherwise search never gets indexed).
+    [Theory]
+    [InlineData(true, false, false)]   // on AC, normal
+    [InlineData(false, false, true)]   // on battery
+    [InlineData(true, true, true)]     // Energy Saver on AC
+    [InlineData(false, true, true)]
+    public void EnergySaverThrottlesButNeverPauses(bool ac, bool saver, bool throttled)
+    {
+        var snap = new SystemSnapshot { OnAcPower = ac, LowPowerMode = saver };
+        Assert.Equal(throttled, snap.ShouldThrottle);
+        Assert.False(snap.UnderPressure);
+    }
+
+    [Fact]
+    public async Task LowPriorityJobsStillRunInEnergySaver()
+    {
+        var (store, _, _) = Setup();
+        var queue = new TaskQueue(store) { IsThrottled = () => true, IsUnderPressure = () => false };
+        var ran = 0;
+        queue.Runner = (_, _) => { Interlocked.Increment(ref ran); return Task.FromResult("ok"); };
+        var job = queue.Enqueue(new Job { Name = "index", Priority = JobPriority.low, Spec = new JobSpec { Operation = JobOperation.scanInsights } });
+        queue.Start();
+        for (var i = 0; i < 50 && store.Job(job.Id)?.Status != JobStatus.completed; i++) await Task.Delay(100);
+        Assert.Equal(JobStatus.completed, store.Job(job.Id)!.Status);
+        Assert.Equal(1, ran);
+    }
+
     [Fact]
     public void RunawayGuard()
     {

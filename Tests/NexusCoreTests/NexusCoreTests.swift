@@ -494,3 +494,22 @@ final class UpdaterInstallTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: old.appendingPathComponent("version.txt"), encoding: .utf8), "OLD")
     }
 }
+
+// MARK: - Power policy
+
+final class PowerPolicyTests: XCTestCase {
+    private func snapshot(ac: Bool, lowPower: Bool, thermal: ProcessInfo.ThermalState = .nominal) -> SystemSnapshot {
+        SystemSnapshot(diskFreeGB: 100, diskTotalGB: 500, idleSeconds: 0, onACPower: ac, lowPowerMode: lowPower, thermalState: thermal, mountedVolumes: [])
+    }
+
+    /// Battery and Low Power Mode slow background work down; only real overheating pauses it.
+    /// (Pausing in Low Power Mode meant library indexing never ran, so search found nothing.)
+    func testLowPowerModeThrottlesButDoesNotPause() {
+        XCTAssertFalse(snapshot(ac: true, lowPower: false).shouldThrottle)
+        XCTAssertTrue(snapshot(ac: false, lowPower: false).shouldThrottle)
+        XCTAssertTrue(snapshot(ac: true, lowPower: true).shouldThrottle)
+        XCTAssertFalse(snapshot(ac: false, lowPower: true).underPressure)
+        XCTAssertTrue(snapshot(ac: true, lowPower: false, thermal: .serious).underPressure)
+        XCTAssertTrue(snapshot(ac: true, lowPower: false, thermal: .critical).shouldThrottle)
+    }
+}

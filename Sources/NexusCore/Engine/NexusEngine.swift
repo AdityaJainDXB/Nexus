@@ -77,7 +77,7 @@ public final class NexusEngine: ActionHost {
         let q = OperationQueue()
         q.name = "app.nexus.ingest"
         q.maxConcurrentOperationCount = 2
-        q.qualityOfService = .utility
+        q.qualityOfService = .userInitiated      // a file you just downloaded is something you're waiting on
         return q
     }()
     private var recentRemovals: [UInt64: (path: String, at: Date, record: FileRecord?)] = [:]
@@ -116,6 +116,8 @@ public final class NexusEngine: ActionHost {
 
     public func start() {
         seedIfNeeded()
+        // Load the on-device language model now, quietly, so the first file you download isn't the one that pays for it
+        DispatchQueue.global(qos: .utility).async { [weak self] in _ = self?.embedder.vector("warm up") }
         plugins.installExamples()
         bus.subscribe { [weak self] in self?.handle($0) }
 
@@ -428,7 +430,7 @@ public final class NexusEngine: ActionHost {
         ingestQueue.addOperation { [weak self] in
             guard let self else { return }
             let sem = DispatchSemaphore(value: 0)
-            Task.detached(priority: .utility) {
+            Task.detached(priority: .userInitiated) {
                 await self.ingest(path, trigger: trigger, info: info)
                 sem.signal()
             }

@@ -19,7 +19,7 @@ public struct FileChange {
 public final class FileWatcher {
     public var onChange: (([FileChange]) -> Void)?
     private var stream: FSEventStreamRef?
-    private let queue = DispatchQueue(label: "app.nexus.fsevents", qos: .utility)
+    private let queue = DispatchQueue(label: "app.nexus.fsevents", qos: .userInitiated)
     public private(set) var paths: [String] = []
 
     public init() {}
@@ -88,7 +88,7 @@ public final class FileWatcher {
 /// Waits until a file's size stops changing (downloads, copies, exports in progress).
 public final class FileStabilizer {
     private var pending: [String: (size: Int64, checks: Int)] = [:]
-    private let queue = DispatchQueue(label: "app.nexus.stabilizer", qos: .utility)
+    private let queue = DispatchQueue(label: "app.nexus.stabilizer", qos: .userInitiated)
     public var onStable: ((String) -> Void)?
     public init() {}
 
@@ -128,8 +128,10 @@ public struct SystemSnapshot {
     public var thermalState: ProcessInfo.ThermalState
     public var mountedVolumes: [String]
 
-    public var shouldThrottle: Bool { !onACPower || underPressure }
-    public var underPressure: Bool { lowPowerMode || thermalState == .serious || thermalState == .critical }
+    /// Slow down background work (one job at a time, gentle pacing) on battery, in Low Power Mode, or when hot.
+    public var shouldThrottle: Bool { !onACPower || lowPowerMode || underPressure }
+    /// Genuine thermal pressure: pause non-urgent jobs until the Mac cools down. Low Power Mode slows work, it doesn't stop it.
+    public var underPressure: Bool { thermalState == .serious || thermalState == .critical }
 }
 
 public final class SystemMonitor {

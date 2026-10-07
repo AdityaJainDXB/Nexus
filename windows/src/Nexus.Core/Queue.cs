@@ -144,8 +144,10 @@ public class SystemSnapshot
     public bool OnAcPower { get; set; } = true;
     public bool LowPowerMode { get; set; }
     public List<string> Volumes { get; set; } = [];
-    public bool ShouldThrottle => !OnAcPower || UnderPressure;
-    public bool UnderPressure => LowPowerMode;
+    /// Slow down background work (one job at a time) on battery or in Energy Saver.
+    public bool ShouldThrottle => !OnAcPower || LowPowerMode || UnderPressure;
+    /// Windows doesn't expose thermal state; Energy Saver slows background work but never stops it.
+    public bool UnderPressure => false;
 }
 
 /// Turns schedules (once / cron / conditional) and maintenance hooks into queued jobs.
