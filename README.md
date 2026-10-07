@@ -197,6 +197,18 @@ windows/             Nexus for Windows — Nexus.Core (.NET 10 engine), Nexus.Ap
 ```
 </details>
 
+## Support Nexus
+
+Nexus is free, open source (MIT) and has no ads, tracking or paid tier. If it saves you time and you'd like to chip in, donations are welcome — thank you! 💙
+
+| Coin | Address |
+|---|---|
+| **Bitcoin** (BTC) | `bc1q6n68e5pkteuvs9fj38an340yj9vz5h84gu0gz5` |
+| **Ethereum** (ETH) | `0x7CB03e86d62939C6BB743529Ba19E665a31dbCc5` |
+| **Litecoin** (LTC) | `ltc1qymlmvkdmvpk5f90esthzgwaw6w0tuzq6tdr6kf` |
+
+<sub>Always copy the address from this page on <b>github.com/AdityaJainDXB/Nexus</b> and double-check the first and last few characters before sending. Crypto transfers can't be reversed. Not donating is completely fine too — a ⭐ on the repo helps just as much.</sub>
+
 ## Credits
 
 Built with SwiftUI, Vision, NaturalLanguage, Speech and WidgetKit. Offline AI by [llama.cpp](https://github.com/ggml-org/llama.cpp) (MIT) running [Qwen2.5-1.5B-Instruct](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF) (Apache 2.0).
